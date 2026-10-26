@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: "Flow Workbench: browser-based flow cytometry gating, compensation and figure composition"
+message: "If you use this software in published work, please cite it as below."
+type: software
+authors:
+  - family-names: Lao
+    given-names: Linjiang
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # add your ORCID
+    affiliation: "Lunenfeld-Tanenbaum Research Institute, Sinai Health"
+repository-code: "https://github.com/USERNAME/flow-workbench"
+url: "https://USERNAME.github.io/flow-workbench/"
+abstract: >-
+  Flow Workbench is a single-file, zero-install web application for flow
+  cytometry analysis. It reads FCS 2.0, 3.0 and 3.1 files entirely in the
+  browser and provides spillover compensation (from the file, edited by hand,
+  or computed from single-stain controls), per-channel linear, log, arcsinh
+  and logicle transforms, interactive hierarchical gating with rectangle,
+  polygon, ellipse, interval and quadrant gates, population statistics with
+  CSV export, and a figure composer with fixed and free-form layouts that
+  exports PNG, vector SVG and PDF. Projects bundle the source FCS files with
+  the complete analysis in one reopenable file.
+keywords:
+  - flow cytometry
+  - FCS
+  - gating
+  - compensation
+  - logicle
+  - data visualization
+license: MIT
+version: 1.0.0
+date-released: "2026-10-26"

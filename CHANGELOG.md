@@ -1,0 +1,27 @@
+# Changelog
+
+All notable changes to this project are documented here.
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] — 2026-10-26
+
+First public release.
+
+### Analysis
+- FCS 2.0 / 3.0 / 3.1 reader (integer, float and double; both byte orders; `$PnE` log amplification converted to linear on read), validated against the `flowio` Python library on nine files from different instruments.
+- Spillover compensation from the file's own matrix, edited by hand with a live before/after preview, or computed from single-stain controls against an unstained control.
+- Per-channel transforms: linear, log, arcsinh and logicle with automatic width estimation.
+- Interactive hierarchical gating: rectangle, polygon, ellipse, interval and quadrant gates, all editable after drawing; downstream populations recompute immediately.
+- Population statistics (count, % of parent, % of all) with median, mean, geometric mean or robust CV per marker; CSV export.
+- Export any gated population as a new FCS file.
+
+### Output
+- Gating scheme view showing every step on one page.
+- Six figure layouts: current plot, gating strategy, samples in columns, samples in rows, histogram overlay and stacked histograms.
+- Free-form layout: place plot panels anywhere, resize them, and annotate with text and arrows.
+- Panels can overlay several samples, several populations, or both, with a legend carrying gate frequencies or event counts.
+- PNG (1×/2×/4×), vector SVG with editable text, and PDF via the print dialog.
+
+### Data management
+- Project files (`.fwproj`) bundling the original FCS bytes with the complete analysis.
+- Gating templates (`.json`) carrying gates, transforms and compensation to a new batch of files.

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow Workbench</title>
+<style>
+:root {
+  --paper: #EEF1F0;
+  --panel: #FFFFFF;
+  --ink: #16212A;
+  --muted: #5A6670;
+  --faint: #8C979F;
+  --rule: #D3DAD8;
+  --rule-soft: #E4E9E7;
+  --accent: #0A73B8;      /* 488 nm */
+  --accent-soft: #E3F0F8;
+  --danger: #B3261E;
+  --l355: #6E56CF; --l405: #7A3FD1; --l488: #0A9BD6; --l561: #93B51D; --l640: #D8342C; --lnone: #A3ADB3;
+  --font: "Avenir Next", "Avenir", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font); font-size: 14px; line-height: 1.45; color: var(--ink); background: var(--paper); font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+header { display: flex; align-items: center; gap: 20px; padding: 0 18px; height: 54px; background: var(--ink); color: #F4F7F6; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: .01em; white-space: nowrap; }
+.brand svg { display: block; }
+.tabs { display: flex; gap: 2px; margin-left: 12px; height: 100%; }
+.tab { background: none; border: 0; color: #B9C4C9; padding: 0 14px; height: 100%; border-bottom: 3px solid transparent; font-weight: 500; }
+.tab:hover { color: #fff; }
+.tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--l488); }
+.tab:disabled { opacity: .35; cursor: default; }
+.hdr-actions { margin-left: auto; display: flex; gap: 8px; }
+.hbtn { background: transparent; border: 1px solid #3A4A55; color: #E6ECEA; border-radius: 6px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
+.hbtn:hover { border-color: #7F9099; }
+.hbtn.primary { background: var(--l488); border-color: var(--l488); color: #fff; font-weight: 600; }
+.hbtn.primary:hover { filter: brightness(1.08); }
+
+/* ---------- layout ---------- */
+.app { display: grid; grid-template-columns: 264px 1fr; height: calc(100% - 54px); }
+aside.side { background: var(--panel); border-right: 1px solid var(--rule); overflow: auto; display: flex; flex-direction: column; }
+.side h2, .insp h2, .pane h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0; padding: 14px 16px 6px; }
+.side section + section { border-top: 1px solid var(--rule-soft); }
+main { overflow: auto; position: relative; }
+.pane { display: none; height: 100%; }
+.pane.on { display: block; }
+
+/* samples */
+.slist { list-style: none; margin: 0; padding: 0 8px 10px; }
+.slist li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.slist li:hover { background: var(--paper); }
+.slist li.on { background: var(--accent-soft); }
+.slist li.on .sname { font-weight: 600; }
+.sname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scount { color: var(--faint); font-size: 12px; }
+.iconbtn { border: 0; background: none; color: var(--faint); padding: 2px 5px; border-radius: 4px; line-height: 1; font-size: 15px; }
+.iconbtn:hover { color: var(--ink); background: var(--rule-soft); }
+
+/* population tree */
+.tree { list-style: none; margin: 0; padding: 0 8px 14px; }
+.tree li { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; cursor: pointer; position: relative; }
+.tree li:hover { background: var(--paper); }
+.tree li.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.tree .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree .pct { color: var(--muted); font-size: 12px; }
+.tree .guide { color: var(--rule); font-size: 12px; }
+.tree li .acts { display: none; }
+.tree li:hover .acts, .tree li.on .acts { display: flex; }
+.hint { color: var(--faint); font-size: 12.5px; padding: 0 16px 14px; margin: 0; }
+
+/* ---------- gate pane ---------- */
+.gatewrap { display: grid; grid-template-columns: minmax(420px, 1fr) 290px; height: 100%; }
+.stage { padding: 14px 18px; display: flex; flex-direction: column; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 10px; }
+.axsel { display: flex; align-items: center; gap: 6px; }
+.axsel label { color: var(--muted); font-size: 13px; }
+select.ch { border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; padding: 5px 8px; max-width: 190px; }
+.tools { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.tools button { border: 0; background: none; padding: 6px 9px; display: flex; align-items: center; color: var(--muted); border-right: 1px solid var(--rule-soft); }
+.tools button:last-child { border-right: 0; }
+.tools button:hover { color: var(--ink); background: var(--paper); }
+.tools button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.tools button:disabled { opacity: .3; cursor: default; background: none; }
+.plotbox { position: relative; flex: 1; min-height: 360px; display: flex; align-items: flex-start; justify-content: center; }
+canvas.plot { display: block; background: var(--panel); border-radius: 10px; border: 1px solid var(--rule); touch-action: none; }
+.statusline { color: var(--muted); font-size: 12.5px; margin-top: 8px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.statusline b { color: var(--ink); font-weight: 600; }
+.linkbtn { border: 0; background: none; color: var(--accent); padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+
+aside.insp { background: var(--panel); border-left: 1px solid var(--rule); overflow: auto; padding-bottom: 20px; }
+.insp section { border-bottom: 1px solid var(--rule-soft); padding-bottom: 12px; }
+.field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; padding: 4px 16px; }
+.field label { color: var(--muted); font-size: 13px; }
+.field input[type=number], .field select, .field input[type=text] { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 7px; background: #fff; }
+.field input[type=range] { width: 100%; accent-color: var(--accent); }
+.axhead { display: flex; align-items: center; gap: 8px; padding: 10px 16px 4px; font-weight: 600; }
+.laser { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.minibtns { display: flex; gap: 8px; padding: 6px 16px 0; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: #fff; border-radius: 6px; padding: 5px 11px; font-size: 13px; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .4; cursor: default; }
+.glist { list-style: none; margin: 0; padding: 0 8px; }
+.glist li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.glist li:hover { background: var(--paper); }
+.glist li.on { background: var(--accent-soft); }
+.glist .gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chk { display: flex; align-items: center; gap: 8px; padding: 3px 16px; font-size: 13px; }
+.chk input { accent-color: var(--accent); }
+.swatch { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+
+/* name popover */
+.pop { position: absolute; z-index: 20; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 10px 30px rgba(22,33,42,.18); padding: 12px; width: 250px; }
+.pop label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.pop input { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; }
+.pop .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+/* ---------- empty state ---------- */
+.empty { max-width: 640px; margin: 9vh auto 0; padding: 0 24px; }
+.empty h1 { font-size: 30px; line-height: 1.15; font-weight: 600; margin: 0 0 12px; letter-spacing: -.01em; }
+.empty p { color: var(--muted); font-size: 15.5px; margin: 0 0 22px; max-width: 58ch; }
+.drop { border: 2px dashed var(--rule); border-radius: 14px; padding: 34px 24px; text-align: center; background: var(--panel); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .btns { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+.lasers { display: flex; gap: 6px; margin: 26px 0 10px; }
+.lasers span { height: 4px; flex: 1; border-radius: 2px; }
+.feat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 26px; color: var(--muted); font-size: 13.5px; margin: 0; padding: 0; list-style: none; }
+.feat b { color: var(--ink); font-weight: 600; }
+
+/* ---------- other panes ---------- */
+.pad { padding: 18px 22px 40px; }
+.pad > h2 { padding: 0 0 4px; }
+.lead { color: var(--muted); margin: 0 0 16px; max-width: 75ch; }
+.grid-scheme { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.grid-scheme canvas { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+.row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+table.tbl { border-collapse: collapse; font-size: 13px; background: #fff; border: 1px solid var(--rule); border-radius: 8px; }
+table.tbl th, table.tbl td { padding: 6px 10px; border-bottom: 1px solid var(--rule-soft); text-align: right; white-space: nowrap; }
+table.tbl th { font-weight: 600; color: var(--muted); background: #F7F9F8; position: sticky; top: 0; }
+table.tbl td.l, table.tbl th.l { text-align: left; }
+table.tbl tr.grp td { border-top: 2px solid var(--rule); }
+.tblwrap { overflow: auto; max-height: calc(100vh - 230px); border-radius: 8px; }
+table.tbl.matrix td { padding: 2px 6px; }
+.matrix input { width: 72px; border: 1px solid transparent; background: transparent; text-align: right; padding: 3px 5px; border-radius: 4px; }
+.matrix input:hover { border-color: var(--rule); }
+.matrix input:focus { border-color: var(--accent); background: #fff; }
+.matrix td.diag { color: var(--faint); }
+.matrix td.hot input { color: var(--l640); font-weight: 600; }
+.compgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.previews canvas { border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+.card { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-top: 18px; }
+.card h3 { font-size: 14px; margin: 0 0 4px; }
+.chan-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 12px; }
+.chan-checks label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+/* file menu */
+.menuwrap { position: relative; }
+.menu { position: absolute; top: calc(100% + 8px); left: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 12px 32px rgba(22,33,42,.22); padding: 5px; min-width: 216px; z-index: 40; }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 12px; border-radius: 6px; font-size: 13.5px; color: var(--ink); }
+.menu button:hover { background: var(--accent-soft); }
+.menu button:disabled { color: var(--faint); background: none; cursor: default; }
+.menu hr { border: 0; border-top: 1px solid var(--rule-soft); margin: 5px 8px; }
+.projname { display: flex; align-items: center; gap: 8px; color: #B9C4C9; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.projname .unsaved { color: #16212A; background: #E5B93C; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+
+/* export tab */
+.expwrap { display: grid; grid-template-columns: 320px minmax(0, 1fr); height: 100%; }
+.expside { background: var(--panel); border-right: 1px solid var(--rule); overflow: auto; padding: 16px 16px 40px; }
+.expside h3 { font-size: 13px; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.expsec { border-top: 1px solid var(--rule-soft); margin-top: 16px; padding-top: 14px; }
+.expside .field { padding: 4px 0; grid-template-columns: 92px 1fr; }
+.sublabel { color: var(--muted); font-size: 13px; margin: 12px 0 4px; }
+.layouts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.layout { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 4px; border: 1px solid var(--rule); background: #fff; border-radius: 8px; color: var(--muted); font-size: 12px; line-height: 1.2; text-align: center; }
+.layout:hover { border-color: var(--faint); color: var(--ink); }
+.layout.on { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.layout .lname { font-weight: 500; }
+.checklist { max-height: 190px; overflow: auto; border: 1px solid var(--rule-soft); border-radius: 7px; padding: 6px 9px; background: #FCFDFD; }
+.checklist .chk span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rangewrap { display: flex; align-items: center; gap: 8px; }
+.rangewrap input { flex: 1; accent-color: var(--accent); }
+.rangeval { color: var(--muted); font-size: 12.5px; min-width: 44px; text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { border: 0; border-right: 1px solid var(--rule-soft); background: #fff; padding: 6px 16px; color: var(--muted); font-size: 13px; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--ink); color: #fff; font-weight: 600; }
+.freeadd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.freeadd .btn { width: 100%; }
+.freetext { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 7px; font: inherit; resize: vertical; }
+.numbox { width: 66px; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 6px; text-align: right; }
+.swatches { display: flex; gap: 5px; }
+.sw { width: 20px; height: 20px; border-radius: 5px; border: 1px solid rgba(0,0,0,.25); padding: 0; }
+.sw.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
+#expPreview.editable { cursor: default; touch-action: none; }
+.exppreview { overflow: auto; padding: 0 22px 30px; }
+#expPreviewWrap { border: 1px solid var(--rule); border-radius: 10px; background: #fff; padding: 12px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
+#expPreview { display: block; max-width: 100%; }
+#expPreview.checker { background-image: linear-gradient(45deg, #E8ECEB 25%, transparent 25%), linear-gradient(-45deg, #E8ECEB 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #E8ECEB 75%), linear-gradient(-45deg, transparent 75%, #E8ECEB 75%); background-size: 14px 14px; background-position: 0 0, 0 7px, 7px -7px, -7px 0; }
+
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; max-width: 80vw; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.toast.err { background: var(--danger); }
+.hidden { display: none !important; }
+kbd { font-family: inherit; font-size: 11.5px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--muted); background: #fff; }
+
+@media (max-width: 1000px) {
+  .expwrap { grid-template-columns: 1fr; height: auto; }
+  .expside { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .exppreview { padding: 0 14px 24px; }
+}
+@media (max-width: 1100px) {
+  .gatewrap { grid-template-columns: 1fr; height: auto; }
+  aside.insp { border-left: 0; border-top: 1px solid var(--rule); }
+  .compgrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  aside.side { border-right: 0; border-bottom: 1px solid var(--rule); max-height: 42vh; }
+  header { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; }
+  .tabs { margin-left: 0; order: 3; width: 100%; overflow-x: auto; height: 40px; }
+  .projname { max-width: 130px; }
+  .feat { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="none" stroke="#3A4A55" stroke-width="1.5"/><path d="M3 15 C7 4, 12 18, 19 7" fill="none" stroke="#0A9BD6" stroke-width="2.2" stroke-linecap="round"/><circle cx="15" cy="12" r="1.6" fill="#D8342C"/><circle cx="7.5" cy="9" r="1.6" fill="#93B51D"/></svg>
+    Flow Workbench
+  </div>
+  <div class="menuwrap">
+    <button class="hbtn" id="btnFile" aria-haspopup="true" aria-expanded="false">File ▾</button>
+    <div class="menu hidden" id="fileMenu" role="menu">
+      <button role="menuitem" id="miNew">New project</button>
+      <button role="menuitem" id="miOpenProj">Open project…</button>
+      <button role="menuitem" id="miSaveProj">Save project</button>
+      <button role="menuitem" id="miSaveProjAs">Save project as…</button>
+      <hr>
+      <button role="menuitem" id="miAddFcs">Add FCS files…</button>
+      <hr>
+      <button role="menuitem" id="miOpenTpl">Open gating template…</button>
+      <button role="menuitem" id="miSaveTpl">Save gating template…</button>
+    </div>
+  </div>
+  <div class="projname" id="projName"></div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-tab="gate" aria-selected="true">Gate</button>
+    <button class="tab" role="tab" data-tab="scheme">Gating scheme</button>
+    <button class="tab" role="tab" data-tab="comp">Compensation</button>
+    <button class="tab" role="tab" data-tab="stats">Statistics</button>
+    <button class="tab" role="tab" data-tab="export">Export figures</button>
+  </nav>
+  <div class="hdr-actions">
+    <button class="hbtn" id="btnSaveProj" title="Save data and analysis as one project file">Save project</button>
+    <button class="hbtn primary" id="btnOpen">Add FCS files</button>
+  </div>
+  <input type="file" id="fileIn" accept=".fcs,.lmd,.FCS" multiple class="hidden">
+  <input type="file" id="tplIn" accept=".json" class="hidden">
+  <input type="file" id="projIn" accept=".fwproj" class="hidden">
+</header>
+
+<div class="app">
+  <aside class="side" aria-label="Samples and populations">
+    <section>
+      <h2>Samples</h2>
+      <ul class="slist" id="sampleList"></ul>
+      <p class="hint" id="sampleHint">No samples loaded yet.</p>
+    </section>
+    <section>
+      <h2>Populations</h2>
+      <ul class="tree" id="popTree"></ul>
+      <p class="hint">Select a population to plot its events, then draw gates inside it.</p>
+    </section>
+  </aside>
+
+  <main>
+    <!-- empty state -->
+    <div class="pane on" id="pane-empty">
+      <div class="empty">
+        <div class="lasers" aria-hidden="true"><span style="background:var(--l355)"></span><span style="background:var(--l405)"></span><span style="background:var(--l488)"></span><span style="background:var(--l561)"></span><span style="background:var(--l640)"></span></div>
+        <h1>Gate, compensate and summarise flow cytometry data in your browser</h1>
+        <p>Add FCS files to start. Files are read on this computer and never uploaded, so the tool works offline and with unpublished data.</p>
+        <div class="drop" id="dropZone">
+          <div>Drop FCS files or a .fwproj project here</div>
+          <div class="btns">
+            <button class="btn primary" id="btnOpen2">Choose files</button>
+            <button class="btn" id="btnOpenProj2">Open project</button>
+            <button class="btn" id="btnDemo">Try with demo data</button>
+          </div>
+        </div>
+        <ul class="feat" style="margin-top:26px">
+          <li><b>Compensation</b> from the file’s spillover matrix, edited by hand, or computed from single-stain controls</li>
+          <li><b>Transforms</b> per channel: linear, log, arcsinh and logicle with automatic width</li>
+          <li><b>Gates</b>: rectangle, polygon, ellipse, interval and quadrant, editable after drawing</li>
+          <li><b>Projects</b> save data and analysis in one file you can reopen or send to a colleague</li>
+          <li><b>Figures</b> export as PNG, vector SVG or PDF in six publication layouts</li>
+          <li><b>Templates</b> save the whole gating tree to apply to new files</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- gate -->
+    <div class="pane" id="pane-gate">
+      <div class="gatewrap">
+        <div class="stage">
+          <div class="toolbar">
+            <div class="axsel"><label for="selX">X</label><select class="ch" id="selX"></select></div>
+            <div class="axsel"><label for="selY">Y</label><select class="ch" id="selY"></select></div>
+            <button class="iconbtn" id="btnSwap" title="Swap axes" aria-label="Swap axes">⇅</button>
+            <div class="tools" role="group" aria-label="Gate tools" id="tools">
+              <button data-tool="pointer" title="Select and edit (V)" aria-label="Select and edit"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2l9 6-4 1 2 5-2 1-2-5-3 3z" fill="currentColor"/></svg></button>
+              <button data-tool="rect" title="Rectangle gate (R)" aria-label="Rectangle gate"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="poly" title="Polygon gate (P) - click to add points, double-click to close" aria-label="Polygon gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 11 5 3l8 2-1.5 8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+              <button data-tool="ellipse" title="Ellipse gate (E) - drag from the centre" aria-label="Ellipse gate"><svg width="16" height="16" viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6" ry="4" transform="rotate(-25 8 8)" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="interval" title="Interval gate (I) - histograms only" aria-label="Interval gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3v10M13 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="quad" title="Quadrant gate (Q)" aria-label="Quadrant gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+            </div>
+            <div class="axsel"><label for="ptSize">Dot size</label><input type="range" id="ptSize" min="1" max="4" step="1" value="2" style="width:70px;accent-color:var(--accent)"></div>
+          </div>
+          <div class="plotbox" id="plotBox">
+            <canvas class="plot" id="plot" tabindex="0" aria-label="Cytometry plot"></canvas>
+          </div>
+          <div class="statusline" id="status"></div>
+        </div>
+        <aside class="insp" aria-label="Inspector">
+          <section id="axisInsp"></section>
+          <section>
+            <h2>Gates on this plot</h2>
+            <ul class="glist" id="gateList"></ul>
+            <p class="hint" id="gateHint">Draw with a gate tool, or pick one here to edit it.</p>
+            <div class="minibtns" id="gateBtns"></div>
+          </section>
+          <section id="overlaySec" class="hidden">
+            <h2>Overlay samples</h2>
+            <div id="overlayList"></div>
+          </section>
+          <section>
+            <h2>Shortcuts</h2>
+            <p class="hint"><kbd>V</kbd> select, <kbd>R</kbd> rectangle, <kbd>P</kbd> polygon, <kbd>E</kbd> ellipse, <kbd>I</kbd> interval, <kbd>Q</kbd> quadrant. <kbd>Delete</kbd> removes the selected gate, <kbd>Esc</kbd> cancels drawing. Drag inside a selected gate to move it.</p>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <!-- scheme -->
+    <div class="pane" id="pane-scheme"><div class="pad">
+      <h2>Gating scheme</h2>
+      <p class="lead" id="schemeLead"></p>
+      <div class="row-actions"><button class="btn" id="btnSchemePng">Save as PNG</button></div>
+      <div class="grid-scheme" id="schemeGrid"></div>
+    </div></div>
+
+    <!-- compensation -->
+    <div class="pane" id="pane-comp"><div class="pad">
+      <h2>Compensation</h2>
+      <p class="lead">Each row is a fluorochrome and each column a detector; values are percent spillover. Edits apply to every sample. Changes show immediately in the preview below.</p>
+      <div class="row-actions">
+        <label class="chk" style="padding:0"><input type="checkbox" id="compOn"> Apply compensation</label>
+        <button class="btn" id="btnCompFile">Use matrix from file</button>
+        <button class="btn" id="btnCompIdent">Reset to identity</button>
+        <button class="btn" id="btnCompCsv">Export matrix CSV</button>
+      </div>
+      <div class="tblwrap" style="max-height:none;display:inline-block;max-width:100%"><table class="tbl matrix" id="matrix"></table></div>
+      <div class="compgrid">
+        <div class="card">
+          <h3>Compute from single-stain controls</h3>
+          <p class="lead" style="margin-bottom:10px">Assign each control file to the detector it is brightest in. The brightest 5% of events (excluding the top 0.2%) are compared with the unstained control, or with the dim half of the same control if none is given.</p>
+          <div id="ctrlAssign"></div>
+          <div class="field" style="padding-left:0;grid-template-columns:150px 1fr;max-width:460px"><label for="ctrlPop">Use events in</label><select id="ctrlPop"></select></div>
+          <div class="minibtns" style="padding-left:0"><button class="btn primary" id="btnCompute">Compute spillover</button></div>
+          <p class="hint" id="computeMsg" style="padding:10px 0 0"></p>
+        </div>
+        <div class="card">
+          <h3>Preview</h3>
+          <div style="display:flex;gap:6px;margin:6px 0 10px"><select id="pvX" class="ch" aria-label="Preview x channel"></select><select id="pvY" class="ch" aria-label="Preview y channel"></select></div>
+          <div class="previews"><canvas id="pvRaw"></canvas><canvas id="pvComp"></canvas></div>
+          <p class="hint" style="padding:6px 0 0">Active sample, all events. Left without compensation, right with the matrix above.</p>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- export -->
+    <div class="pane" id="pane-export"><div class="expwrap">
+      <div class="expside" id="expControls"></div>
+      <div class="exppreview">
+        <h2 style="padding:14px 0 6px">Preview</h2>
+        <div id="expPreviewWrap"><canvas id="expPreview"></canvas></div>
+        <p class="hint" id="expInfo" style="padding:8px 0"></p>
+      </div>
+    </div></div>
+
+    <!-- stats -->
+    <div class="pane" id="pane-stats"><div class="pad">
+      <h2>Statistics</h2>
+      <p class="lead">Counts and frequencies for every population in every sample. Marker statistics use compensated, untransformed values.</p>
+      <div class="row-actions">
+        <label for="statKind" style="color:var(--muted);font-size:13px">Marker statistic</label>
+        <select id="statKind" class="ch"><option value="median">Median</option><option value="mean">Mean</option><option value="gmean">Geometric mean</option><option value="cv">Robust CV (%)</option></select>
+        <button class="btn primary" id="btnCsv">Export CSV</button>
+        <button class="btn" id="btnFcsExport" title="Export events of the selected population in the active sample">Export population as FCS</button>
+      </div>
+      <div class="chan-checks" id="statChans"></div>
+      <div class="tblwrap"><table class="tbl" id="statTable"></table></div>
+    </div></div>
+  </main>
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+<script>
+/*__CORE__*/
+</script>
+<script>
+/*__UI__*/
+</script>
+</body>
+</html>

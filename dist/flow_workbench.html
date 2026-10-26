@@ -1,0 +1,2838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow Workbench</title>
+<style>
+:root {
+  --paper: #EEF1F0;
+  --panel: #FFFFFF;
+  --ink: #16212A;
+  --muted: #5A6670;
+  --faint: #8C979F;
+  --rule: #D3DAD8;
+  --rule-soft: #E4E9E7;
+  --accent: #0A73B8;      /* 488 nm */
+  --accent-soft: #E3F0F8;
+  --danger: #B3261E;
+  --l355: #6E56CF; --l405: #7A3FD1; --l488: #0A9BD6; --l561: #93B51D; --l640: #D8342C; --lnone: #A3ADB3;
+  --font: "Avenir Next", "Avenir", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font); font-size: 14px; line-height: 1.45; color: var(--ink); background: var(--paper); font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+header { display: flex; align-items: center; gap: 20px; padding: 0 18px; height: 54px; background: var(--ink); color: #F4F7F6; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: .01em; white-space: nowrap; }
+.brand svg { display: block; }
+.tabs { display: flex; gap: 2px; margin-left: 12px; height: 100%; }
+.tab { background: none; border: 0; color: #B9C4C9; padding: 0 14px; height: 100%; border-bottom: 3px solid transparent; font-weight: 500; }
+.tab:hover { color: #fff; }
+.tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--l488); }
+.tab:disabled { opacity: .35; cursor: default; }
+.hdr-actions { margin-left: auto; display: flex; gap: 8px; }
+.hbtn { background: transparent; border: 1px solid #3A4A55; color: #E6ECEA; border-radius: 6px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
+.hbtn:hover { border-color: #7F9099; }
+.hbtn.primary { background: var(--l488); border-color: var(--l488); color: #fff; font-weight: 600; }
+.hbtn.primary:hover { filter: brightness(1.08); }
+
+/* ---------- layout ---------- */
+.app { display: grid; grid-template-columns: 264px 1fr; height: calc(100% - 54px); }
+aside.side { background: var(--panel); border-right: 1px solid var(--rule); overflow: auto; display: flex; flex-direction: column; }
+.side h2, .insp h2, .pane h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0; padding: 14px 16px 6px; }
+.side section + section { border-top: 1px solid var(--rule-soft); }
+main { overflow: auto; position: relative; }
+.pane { display: none; height: 100%; }
+.pane.on { display: block; }
+
+/* samples */
+.slist { list-style: none; margin: 0; padding: 0 8px 10px; }
+.slist li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.slist li:hover { background: var(--paper); }
+.slist li.on { background: var(--accent-soft); }
+.slist li.on .sname { font-weight: 600; }
+.sname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scount { color: var(--faint); font-size: 12px; }
+.iconbtn { border: 0; background: none; color: var(--faint); padding: 2px 5px; border-radius: 4px; line-height: 1; font-size: 15px; }
+.iconbtn:hover { color: var(--ink); background: var(--rule-soft); }
+
+/* population tree */
+.tree { list-style: none; margin: 0; padding: 0 8px 14px; }
+.tree li { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; cursor: pointer; position: relative; }
+.tree li:hover { background: var(--paper); }
+.tree li.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.tree .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree .pct { color: var(--muted); font-size: 12px; }
+.tree .guide { color: var(--rule); font-size: 12px; }
+.tree li .acts { display: none; }
+.tree li:hover .acts, .tree li.on .acts { display: flex; }
+.hint { color: var(--faint); font-size: 12.5px; padding: 0 16px 14px; margin: 0; }
+
+/* ---------- gate pane ---------- */
+.gatewrap { display: grid; grid-template-columns: minmax(420px, 1fr) 290px; height: 100%; }
+.stage { padding: 14px 18px; display: flex; flex-direction: column; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 10px; }
+.axsel { display: flex; align-items: center; gap: 6px; }
+.axsel label { color: var(--muted); font-size: 13px; }
+select.ch { border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; padding: 5px 8px; max-width: 190px; }
+.tools { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.tools button { border: 0; background: none; padding: 6px 9px; display: flex; align-items: center; color: var(--muted); border-right: 1px solid var(--rule-soft); }
+.tools button:last-child { border-right: 0; }
+.tools button:hover { color: var(--ink); background: var(--paper); }
+.tools button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.tools button:disabled { opacity: .3; cursor: default; background: none; }
+.plotbox { position: relative; flex: 1; min-height: 360px; display: flex; align-items: flex-start; justify-content: center; }
+canvas.plot { display: block; background: var(--panel); border-radius: 10px; border: 1px solid var(--rule); touch-action: none; }
+.statusline { color: var(--muted); font-size: 12.5px; margin-top: 8px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.statusline b { color: var(--ink); font-weight: 600; }
+.linkbtn { border: 0; background: none; color: var(--accent); padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+
+aside.insp { background: var(--panel); border-left: 1px solid var(--rule); overflow: auto; padding-bottom: 20px; }
+.insp section { border-bottom: 1px solid var(--rule-soft); padding-bottom: 12px; }
+.field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; padding: 4px 16px; }
+.field label { color: var(--muted); font-size: 13px; }
+.field input[type=number], .field select, .field input[type=text] { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 7px; background: #fff; }
+.field input[type=range] { width: 100%; accent-color: var(--accent); }
+.axhead { display: flex; align-items: center; gap: 8px; padding: 10px 16px 4px; font-weight: 600; }
+.laser { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.minibtns { display: flex; gap: 8px; padding: 6px 16px 0; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: #fff; border-radius: 6px; padding: 5px 11px; font-size: 13px; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .4; cursor: default; }
+.glist { list-style: none; margin: 0; padding: 0 8px; }
+.glist li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.glist li:hover { background: var(--paper); }
+.glist li.on { background: var(--accent-soft); }
+.glist .gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chk { display: flex; align-items: center; gap: 8px; padding: 3px 16px; font-size: 13px; }
+.chk input { accent-color: var(--accent); }
+.swatch { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+
+/* name popover */
+.pop { position: absolute; z-index: 20; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 10px 30px rgba(22,33,42,.18); padding: 12px; width: 250px; }
+.pop label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.pop input { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; }
+.pop .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+/* ---------- empty state ---------- */
+.empty { max-width: 640px; margin: 9vh auto 0; padding: 0 24px; }
+.empty h1 { font-size: 30px; line-height: 1.15; font-weight: 600; margin: 0 0 12px; letter-spacing: -.01em; }
+.empty p { color: var(--muted); font-size: 15.5px; margin: 0 0 22px; max-width: 58ch; }
+.drop { border: 2px dashed var(--rule); border-radius: 14px; padding: 34px 24px; text-align: center; background: var(--panel); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .btns { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+.lasers { display: flex; gap: 6px; margin: 26px 0 10px; }
+.lasers span { height: 4px; flex: 1; border-radius: 2px; }
+.feat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 26px; color: var(--muted); font-size: 13.5px; margin: 0; padding: 0; list-style: none; }
+.feat b { color: var(--ink); font-weight: 600; }
+
+/* ---------- other panes ---------- */
+.pad { padding: 18px 22px 40px; }
+.pad > h2 { padding: 0 0 4px; }
+.lead { color: var(--muted); margin: 0 0 16px; max-width: 75ch; }
+.grid-scheme { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.grid-scheme canvas { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+.row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+table.tbl { border-collapse: collapse; font-size: 13px; background: #fff; border: 1px solid var(--rule); border-radius: 8px; }
+table.tbl th, table.tbl td { padding: 6px 10px; border-bottom: 1px solid var(--rule-soft); text-align: right; white-space: nowrap; }
+table.tbl th { font-weight: 600; color: var(--muted); background: #F7F9F8; position: sticky; top: 0; }
+table.tbl td.l, table.tbl th.l { text-align: left; }
+table.tbl tr.grp td { border-top: 2px solid var(--rule); }
+.tblwrap { overflow: auto; max-height: calc(100vh - 230px); border-radius: 8px; }
+table.tbl.matrix td { padding: 2px 6px; }
+.matrix input { width: 72px; border: 1px solid transparent; background: transparent; text-align: right; padding: 3px 5px; border-radius: 4px; }
+.matrix input:hover { border-color: var(--rule); }
+.matrix input:focus { border-color: var(--accent); background: #fff; }
+.matrix td.diag { color: var(--faint); }
+.matrix td.hot input { color: var(--l640); font-weight: 600; }
+.compgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.previews canvas { border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+.card { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-top: 18px; }
+.card h3 { font-size: 14px; margin: 0 0 4px; }
+.chan-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 12px; }
+.chan-checks label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+/* file menu */
+.menuwrap { position: relative; }
+.menu { position: absolute; top: calc(100% + 8px); left: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 12px 32px rgba(22,33,42,.22); padding: 5px; min-width: 216px; z-index: 40; }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 12px; border-radius: 6px; font-size: 13.5px; color: var(--ink); }
+.menu button:hover { background: var(--accent-soft); }
+.menu button:disabled { color: var(--faint); background: none; cursor: default; }
+.menu hr { border: 0; border-top: 1px solid var(--rule-soft); margin: 5px 8px; }
+.projname { display: flex; align-items: center; gap: 8px; color: #B9C4C9; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.projname .unsaved { color: #16212A; background: #E5B93C; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+
+/* export tab */
+.expwrap { display: grid; grid-template-columns: 320px minmax(0, 1fr); height: 100%; }
+.expside { background: var(--panel); border-right: 1px solid var(--rule); overflow: auto; padding: 16px 16px 40px; }
+.expside h3 { font-size: 13px; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.expsec { border-top: 1px solid var(--rule-soft); margin-top: 16px; padding-top: 14px; }
+.expside .field { padding: 4px 0; grid-template-columns: 92px 1fr; }
+.sublabel { color: var(--muted); font-size: 13px; margin: 12px 0 4px; }
+.layouts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.layout { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 4px; border: 1px solid var(--rule); background: #fff; border-radius: 8px; color: var(--muted); font-size: 12px; line-height: 1.2; text-align: center; }
+.layout:hover { border-color: var(--faint); color: var(--ink); }
+.layout.on { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.layout .lname { font-weight: 500; }
+.checklist { max-height: 190px; overflow: auto; border: 1px solid var(--rule-soft); border-radius: 7px; padding: 6px 9px; background: #FCFDFD; }
+.checklist .chk span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rangewrap { display: flex; align-items: center; gap: 8px; }
+.rangewrap input { flex: 1; accent-color: var(--accent); }
+.rangeval { color: var(--muted); font-size: 12.5px; min-width: 44px; text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { border: 0; border-right: 1px solid var(--rule-soft); background: #fff; padding: 6px 16px; color: var(--muted); font-size: 13px; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--ink); color: #fff; font-weight: 600; }
+.freeadd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.freeadd .btn { width: 100%; }
+.freetext { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 7px; font: inherit; resize: vertical; }
+.numbox { width: 66px; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 6px; text-align: right; }
+.swatches { display: flex; gap: 5px; }
+.sw { width: 20px; height: 20px; border-radius: 5px; border: 1px solid rgba(0,0,0,.25); padding: 0; }
+.sw.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
+#expPreview.editable { cursor: default; touch-action: none; }
+.exppreview { overflow: auto; padding: 0 22px 30px; }
+#expPreviewWrap { border: 1px solid var(--rule); border-radius: 10px; background: #fff; padding: 12px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
+#expPreview { display: block; max-width: 100%; }
+#expPreview.checker { background-image: linear-gradient(45deg, #E8ECEB 25%, transparent 25%), linear-gradient(-45deg, #E8ECEB 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #E8ECEB 75%), linear-gradient(-45deg, transparent 75%, #E8ECEB 75%); background-size: 14px 14px; background-position: 0 0, 0 7px, 7px -7px, -7px 0; }
+
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; max-width: 80vw; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.toast.err { background: var(--danger); }
+.hidden { display: none !important; }
+kbd { font-family: inherit; font-size: 11.5px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--muted); background: #fff; }
+
+@media (max-width: 1000px) {
+  .expwrap { grid-template-columns: 1fr; height: auto; }
+  .expside { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .exppreview { padding: 0 14px 24px; }
+}
+@media (max-width: 1100px) {
+  .gatewrap { grid-template-columns: 1fr; height: auto; }
+  aside.insp { border-left: 0; border-top: 1px solid var(--rule); }
+  .compgrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  aside.side { border-right: 0; border-bottom: 1px solid var(--rule); max-height: 42vh; }
+  header { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; }
+  .tabs { margin-left: 0; order: 3; width: 100%; overflow-x: auto; height: 40px; }
+  .projname { max-width: 130px; }
+  .feat { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="none" stroke="#3A4A55" stroke-width="1.5"/><path d="M3 15 C7 4, 12 18, 19 7" fill="none" stroke="#0A9BD6" stroke-width="2.2" stroke-linecap="round"/><circle cx="15" cy="12" r="1.6" fill="#D8342C"/><circle cx="7.5" cy="9" r="1.6" fill="#93B51D"/></svg>
+    Flow Workbench
+  </div>
+  <div class="menuwrap">
+    <button class="hbtn" id="btnFile" aria-haspopup="true" aria-expanded="false">File ▾</button>
+    <div class="menu hidden" id="fileMenu" role="menu">
+      <button role="menuitem" id="miNew">New project</button>
+      <button role="menuitem" id="miOpenProj">Open project…</button>
+      <button role="menuitem" id="miSaveProj">Save project</button>
+      <button role="menuitem" id="miSaveProjAs">Save project as…</button>
+      <hr>
+      <button role="menuitem" id="miAddFcs">Add FCS files…</button>
+      <hr>
+      <button role="menuitem" id="miOpenTpl">Open gating template…</button>
+      <button role="menuitem" id="miSaveTpl">Save gating template…</button>
+    </div>
+  </div>
+  <div class="projname" id="projName"></div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-tab="gate" aria-selected="true">Gate</button>
+    <button class="tab" role="tab" data-tab="scheme">Gating scheme</button>
+    <button class="tab" role="tab" data-tab="comp">Compensation</button>
+    <button class="tab" role="tab" data-tab="stats">Statistics</button>
+    <button class="tab" role="tab" data-tab="export">Export figures</button>
+  </nav>
+  <div class="hdr-actions">
+    <button class="hbtn" id="btnSaveProj" title="Save data and analysis as one project file">Save project</button>
+    <button class="hbtn primary" id="btnOpen">Add FCS files</button>
+  </div>
+  <input type="file" id="fileIn" accept=".fcs,.lmd,.FCS" multiple class="hidden">
+  <input type="file" id="tplIn" accept=".json" class="hidden">
+  <input type="file" id="projIn" accept=".fwproj" class="hidden">
+</header>
+
+<div class="app">
+  <aside class="side" aria-label="Samples and populations">
+    <section>
+      <h2>Samples</h2>
+      <ul class="slist" id="sampleList"></ul>
+      <p class="hint" id="sampleHint">No samples loaded yet.</p>
+    </section>
+    <section>
+      <h2>Populations</h2>
+      <ul class="tree" id="popTree"></ul>
+      <p class="hint">Select a population to plot its events, then draw gates inside it.</p>
+    </section>
+  </aside>
+
+  <main>
+    <!-- empty state -->
+    <div class="pane on" id="pane-empty">
+      <div class="empty">
+        <div class="lasers" aria-hidden="true"><span style="background:var(--l355)"></span><span style="background:var(--l405)"></span><span style="background:var(--l488)"></span><span style="background:var(--l561)"></span><span style="background:var(--l640)"></span></div>
+        <h1>Gate, compensate and summarise flow cytometry data in your browser</h1>
+        <p>Add FCS files to start. Files are read on this computer and never uploaded, so the tool works offline and with unpublished data.</p>
+        <div class="drop" id="dropZone">
+          <div>Drop FCS files or a .fwproj project here</div>
+          <div class="btns">
+            <button class="btn primary" id="btnOpen2">Choose files</button>
+            <button class="btn" id="btnOpenProj2">Open project</button>
+            <button class="btn" id="btnDemo">Try with demo data</button>
+          </div>
+        </div>
+        <ul class="feat" style="margin-top:26px">
+          <li><b>Compensation</b> from the file’s spillover matrix, edited by hand, or computed from single-stain controls</li>
+          <li><b>Transforms</b> per channel: linear, log, arcsinh and logicle with automatic width</li>
+          <li><b>Gates</b>: rectangle, polygon, ellipse, interval and quadrant, editable after drawing</li>
+          <li><b>Projects</b> save data and analysis in one file you can reopen or send to a colleague</li>
+          <li><b>Figures</b> export as PNG, vector SVG or PDF in six publication layouts</li>
+          <li><b>Templates</b> save the whole gating tree to apply to new files</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- gate -->
+    <div class="pane" id="pane-gate">
+      <div class="gatewrap">
+        <div class="stage">
+          <div class="toolbar">
+            <div class="axsel"><label for="selX">X</label><select class="ch" id="selX"></select></div>
+            <div class="axsel"><label for="selY">Y</label><select class="ch" id="selY"></select></div>
+            <button class="iconbtn" id="btnSwap" title="Swap axes" aria-label="Swap axes">⇅</button>
+            <div class="tools" role="group" aria-label="Gate tools" id="tools">
+              <button data-tool="pointer" title="Select and edit (V)" aria-label="Select and edit"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2l9 6-4 1 2 5-2 1-2-5-3 3z" fill="currentColor"/></svg></button>
+              <button data-tool="rect" title="Rectangle gate (R)" aria-label="Rectangle gate"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="poly" title="Polygon gate (P) - click to add points, double-click to close" aria-label="Polygon gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 11 5 3l8 2-1.5 8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+              <button data-tool="ellipse" title="Ellipse gate (E) - drag from the centre" aria-label="Ellipse gate"><svg width="16" height="16" viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6" ry="4" transform="rotate(-25 8 8)" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="interval" title="Interval gate (I) - histograms only" aria-label="Interval gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3v10M13 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+              <button data-tool="quad" title="Quadrant gate (Q)" aria-label="Quadrant gate"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+            </div>
+            <div class="axsel"><label for="ptSize">Dot size</label><input type="range" id="ptSize" min="1" max="4" step="1" value="2" style="width:70px;accent-color:var(--accent)"></div>
+          </div>
+          <div class="plotbox" id="plotBox">
+            <canvas class="plot" id="plot" tabindex="0" aria-label="Cytometry plot"></canvas>
+          </div>
+          <div class="statusline" id="status"></div>
+        </div>
+        <aside class="insp" aria-label="Inspector">
+          <section id="axisInsp"></section>
+          <section>
+            <h2>Gates on this plot</h2>
+            <ul class="glist" id="gateList"></ul>
+            <p class="hint" id="gateHint">Draw with a gate tool, or pick one here to edit it.</p>
+            <div class="minibtns" id="gateBtns"></div>
+          </section>
+          <section id="overlaySec" class="hidden">
+            <h2>Overlay samples</h2>
+            <div id="overlayList"></div>
+          </section>
+          <section>
+            <h2>Shortcuts</h2>
+            <p class="hint"><kbd>V</kbd> select, <kbd>R</kbd> rectangle, <kbd>P</kbd> polygon, <kbd>E</kbd> ellipse, <kbd>I</kbd> interval, <kbd>Q</kbd> quadrant. <kbd>Delete</kbd> removes the selected gate, <kbd>Esc</kbd> cancels drawing. Drag inside a selected gate to move it.</p>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <!-- scheme -->
+    <div class="pane" id="pane-scheme"><div class="pad">
+      <h2>Gating scheme</h2>
+      <p class="lead" id="schemeLead"></p>
+      <div class="row-actions"><button class="btn" id="btnSchemePng">Save as PNG</button></div>
+      <div class="grid-scheme" id="schemeGrid"></div>
+    </div></div>
+
+    <!-- compensation -->
+    <div class="pane" id="pane-comp"><div class="pad">
+      <h2>Compensation</h2>
+      <p class="lead">Each row is a fluorochrome and each column a detector; values are percent spillover. Edits apply to every sample. Changes show immediately in the preview below.</p>
+      <div class="row-actions">
+        <label class="chk" style="padding:0"><input type="checkbox" id="compOn"> Apply compensation</label>
+        <button class="btn" id="btnCompFile">Use matrix from file</button>
+        <button class="btn" id="btnCompIdent">Reset to identity</button>
+        <button class="btn" id="btnCompCsv">Export matrix CSV</button>
+      </div>
+      <div class="tblwrap" style="max-height:none;display:inline-block;max-width:100%"><table class="tbl matrix" id="matrix"></table></div>
+      <div class="compgrid">
+        <div class="card">
+          <h3>Compute from single-stain controls</h3>
+          <p class="lead" style="margin-bottom:10px">Assign each control file to the detector it is brightest in. The brightest 5% of events (excluding the top 0.2%) are compared with the unstained control, or with the dim half of the same control if none is given.</p>
+          <div id="ctrlAssign"></div>
+          <div class="field" style="padding-left:0;grid-template-columns:150px 1fr;max-width:460px"><label for="ctrlPop">Use events in</label><select id="ctrlPop"></select></div>
+          <div class="minibtns" style="padding-left:0"><button class="btn primary" id="btnCompute">Compute spillover</button></div>
+          <p class="hint" id="computeMsg" style="padding:10px 0 0"></p>
+        </div>
+        <div class="card">
+          <h3>Preview</h3>
+          <div style="display:flex;gap:6px;margin:6px 0 10px"><select id="pvX" class="ch" aria-label="Preview x channel"></select><select id="pvY" class="ch" aria-label="Preview y channel"></select></div>
+          <div class="previews"><canvas id="pvRaw"></canvas><canvas id="pvComp"></canvas></div>
+          <p class="hint" style="padding:6px 0 0">Active sample, all events. Left without compensation, right with the matrix above.</p>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- export -->
+    <div class="pane" id="pane-export"><div class="expwrap">
+      <div class="expside" id="expControls"></div>
+      <div class="exppreview">
+        <h2 style="padding:14px 0 6px">Preview</h2>
+        <div id="expPreviewWrap"><canvas id="expPreview"></canvas></div>
+        <p class="hint" id="expInfo" style="padding:8px 0"></p>
+      </div>
+    </div></div>
+
+    <!-- stats -->
+    <div class="pane" id="pane-stats"><div class="pad">
+      <h2>Statistics</h2>
+      <p class="lead">Counts and frequencies for every population in every sample. Marker statistics use compensated, untransformed values.</p>
+      <div class="row-actions">
+        <label for="statKind" style="color:var(--muted);font-size:13px">Marker statistic</label>
+        <select id="statKind" class="ch"><option value="median">Median</option><option value="mean">Mean</option><option value="gmean">Geometric mean</option><option value="cv">Robust CV (%)</option></select>
+        <button class="btn primary" id="btnCsv">Export CSV</button>
+        <button class="btn" id="btnFcsExport" title="Export events of the selected population in the active sample">Export population as FCS</button>
+      </div>
+      <div class="chan-checks" id="statChans"></div>
+      <div class="tblwrap"><table class="tbl" id="statTable"></table></div>
+    </div></div>
+  </main>
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+<script>
+/* Flow Workbench core: DOM-free logic. Exposed as `Core`. */
+const Core = (() => {
+  'use strict';
+
+  // ---------------------------------------------------------------- FCS ---
+  const dec = new TextDecoder('utf-8');
+  const latin = new TextDecoder('latin1');
+
+  function decodeText(bytes) {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch (e) { return latin.decode(bytes); }
+  }
+
+  function parseTextSegment(str) {
+    const delim = str[0];
+    const tokens = [];
+    let cur = '';
+    for (let i = 1; i < str.length; i++) {
+      const ch = str[i];
+      if (ch === delim) {
+        if (str[i + 1] === delim) { cur += delim; i++; continue; }
+        tokens.push(cur); cur = '';
+      } else cur += ch;
+    }
+    if (cur.trim().length) tokens.push(cur);
+    const kv = {};
+    for (let i = 0; i + 1 < tokens.length; i += 2) kv[tokens[i].trim().toUpperCase()] = tokens[i + 1].trim();
+    return kv;
+  }
+
+  function parseSpill(kw, paramNames) {
+    const key = ['$SPILLOVER', 'SPILL', '$SPILL', 'SPILLOVER', '$COMP', 'COMP'].find(k => kw[k]);
+    if (!key) return null;
+    const parts = kw[key].split(',').map(s => s.trim());
+    const n = parseInt(parts[0], 10);
+    if (!(n > 0) || parts.length < 1 + n + n * n) return null;
+    let names = parts.slice(1, n + 1);
+    // Some instruments store parameter indices instead of names
+    if (names.every(s => /^\d+$/.test(s) && +s >= 1 && +s <= paramNames.length)) names = names.map(s => paramNames[+s - 1]);
+    const vals = parts.slice(n + 1, n + 1 + n * n).map(Number);
+    if (vals.some(v => !isFinite(v))) return null;
+    const matrix = [];
+    for (let i = 0; i < n; i++) matrix.push(vals.slice(i * n, i * n + n));
+    return { channels: names, matrix, source: key };
+  }
+
+  function parseFCS(buf, fileName) {
+    const bytes = new Uint8Array(buf);
+    const head = latin.decode(bytes.subarray(0, 58));
+    if (!head.startsWith('FCS')) throw new Error(`${fileName}: not an FCS file (missing FCS header).`);
+    const off = k => parseInt(head.slice(k, k + 8).trim() || '0', 10) || 0;
+    const ts = off(10), te = off(18);
+    let ds = off(26), de = off(34);
+    const kw = parseTextSegment(decodeText(bytes.subarray(ts, te + 1)));
+    if (!ds || !de) { ds = parseInt(kw.$BEGINDATA, 10); de = parseInt(kw.$ENDDATA, 10); }
+    if ((kw.$MODE || 'L').toUpperCase() !== 'L') throw new Error(`${fileName}: only list-mode FCS files are supported.`);
+    const dtype = (kw.$DATATYPE || '').toUpperCase();
+    if (!'FDI'.includes(dtype) || !dtype) throw new Error(`${fileName}: data type "${dtype}" is not supported (need F, D or I).`);
+    const P = parseInt(kw.$PAR, 10);
+    let N = parseInt(kw.$TOT, 10);
+    const little = (kw.$BYTEORD || '1,2,3,4').trim().startsWith('1');
+    const params = [];
+    for (let i = 1; i <= P; i++) {
+      const name = kw[`$P${i}N`] || `P${i}`;
+      const stain = kw[`$P${i}S`] || '';
+      const bits = parseInt(kw[`$P${i}B`], 10) || (dtype === 'D' ? 64 : 32);
+      const range = parseFloat(kw[`$P${i}R`]) || 262144;
+      const e = (kw[`$P${i}E`] || '0,0').split(',').map(Number);
+      params.push({ name, stain, bits, range, e1: e[0] || 0, e2: e[1] || 0 });
+    }
+    const widths = params.map(p => dtype === 'F' ? 4 : dtype === 'D' ? 8 : p.bits / 8);
+    if (widths.some(w => ![1, 2, 4, 8].includes(w))) throw new Error(`${fileName}: unsupported bit width.`);
+    const rowBytes = widths.reduce((a, b) => a + b, 0);
+    // Resolve HEADER vs TEXT data-offset discrepancies: prefer whichever matches $TOT x row size
+    const tds = parseInt(kw.$BEGINDATA, 10), tde = parseInt(kw.$ENDDATA, 10), need = N * rowBytes;
+    if (tds > 0 && tde > 0 && (tds !== ds || tde !== de)) {
+      const hOK = (de - ds + 1) === need, tOK = (tde - tds + 1) === need;
+      if ((tOK && !hOK) || (!hOK && ds + need > buf.byteLength)) { ds = tds; de = tde; }
+    }
+    if (de >= buf.byteLength) de = buf.byteLength - 1;
+    const avail = de - ds + 1;
+    if (!(N > 0) || N * rowBytes > avail) N = Math.floor(avail / rowBytes);
+    const cols = params.map(() => new Float32Array(N));
+    const dv = new DataView(buf);
+    let p = ds;
+    if (dtype === 'F') {
+      for (let e = 0; e < N; e++) for (let j = 0; j < P; j++) { cols[j][e] = dv.getFloat32(p, little); p += 4; }
+    } else if (dtype === 'D') {
+      for (let e = 0; e < N; e++) for (let j = 0; j < P; j++) { cols[j][e] = dv.getFloat64(p, little); p += 8; }
+    } else {
+      const masks = params.map(pr => {
+        const r = pr.range; const isPow2 = r > 0 && (Math.log2(r) % 1 === 0);
+        return isPow2 && r <= Math.pow(2, pr.bits) ? r - 1 : null;
+      });
+      for (let e = 0; e < N; e++) for (let j = 0; j < P; j++) {
+        const w = widths[j]; let v;
+        if (w === 1) v = dv.getUint8(p);
+        else if (w === 2) v = dv.getUint16(p, little);
+        else if (w === 4) v = dv.getUint32(p, little);
+        else v = Number(dv.getBigUint64(p, little));
+        p += w;
+        if (masks[j] !== null) v = masks[j] === 0xFFFFFFFF ? v : (v % (masks[j] + 1));
+        cols[j][e] = v;
+      }
+      params.forEach((pr, j) => { // $PnE log amplification
+        if (pr.e1 > 0) {
+          const f2 = pr.e2 > 0 ? pr.e2 : 1, c = cols[j];
+          for (let e = 0; e < N; e++) c[e] = Math.pow(10, pr.e1 * c[e] / pr.range) * f2;
+          pr.range = Math.pow(10, pr.e1) * f2;
+        }
+      });
+    }
+    const names = params.map(p => p.name);
+    return {
+      name: (kw.$FIL || fileName || 'sample').replace(/\.fcs$/i, ''),
+      fileName, version: head.slice(0, 6), N, params, cols, keywords: kw,
+      spill: parseSpill(kw, names)
+    };
+  }
+
+  // Minimal FCS 3.1 writer (float32, little endian) - used for exporting subsets
+  function writeFCS(sample, indices, channelCols) {
+    const P = sample.params.length, N = indices ? indices.length : sample.N;
+    const kw = [['$BEGINANALYSIS', '0'], ['$ENDANALYSIS', '0'], ['$BEGINSTEXT', '0'], ['$ENDSTEXT', '0'],
+      ['$BYTEORD', '1,2,3,4'], ['$DATATYPE', 'F'], ['$MODE', 'L'], ['$NEXTDATA', '0'], ['$PAR', String(P)], ['$TOT', String(N)],
+      ['$FIL', sample.name + '.fcs']];
+    sample.params.forEach((p, i) => {
+      kw.push([`$P${i + 1}N`, p.name], [`$P${i + 1}B`, '32'], [`$P${i + 1}E`, '0,0'], [`$P${i + 1}R`, String(Math.round(p.range))]);
+      if (p.stain) kw.push([`$P${i + 1}S`, p.stain]);
+    });
+    const esc = s => String(s).replace(/\|/g, '||');
+    const build = (bd, ed) => '|' + kw.concat([['$BEGINDATA', String(bd)], ['$ENDDATA', String(ed)]]).map(([k, v]) => esc(k) + '|' + esc(v)).join('|') + '|';
+    const dataLen = N * P * 4;
+    let text = build(0, 0), ts = 58, bd, ed;
+    for (let k = 0; k < 4; k++) { bd = ts + new TextEncoder().encode(text).length; ed = bd + dataLen - 1; text = build(bd, ed); }
+    const tbytes = new TextEncoder().encode(text);
+    bd = ts + tbytes.length; ed = bd + dataLen - 1;
+    const pad = n => String(n > 99999999 ? 0 : n).padStart(8, ' ');
+    const header = 'FCS3.1    ' + pad(ts) + pad(ts + tbytes.length - 1) + pad(bd) + pad(ed) + pad(0) + pad(0);
+    const out = new Uint8Array(bd + dataLen);
+    out.set(new TextEncoder().encode(header), 0); out.set(tbytes, ts);
+    const dv = new DataView(out.buffer); let q = bd;
+    const cols = channelCols || sample.cols;
+    for (let e = 0; e < N; e++) { const idx = indices ? indices[e] : e; for (let j = 0; j < P; j++) { dv.setFloat32(q, cols[j][idx], true); q += 4; } }
+    return out;
+  }
+
+  // ------------------------------------------------------ linear algebra ---
+  function invert(M) {
+    const n = M.length, A = M.map((r, i) => r.concat(Array.from({ length: n }, (_, j) => i === j ? 1 : 0)));
+    for (let c = 0; c < n; c++) {
+      let piv = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+      if (Math.abs(A[piv][c]) < 1e-12) throw new Error('Spillover matrix is singular and cannot be inverted.');
+      [A[c], A[piv]] = [A[piv], A[c]];
+      const d = A[c][c];
+      for (let j = 0; j < 2 * n; j++) A[c][j] /= d;
+      for (let r = 0; r < n; r++) if (r !== c) {
+        const f = A[r][c]; if (f === 0) continue;
+        for (let j = 0; j < 2 * n; j++) A[r][j] -= f * A[c][j];
+      }
+    }
+    return A.map(r => r.slice(n));
+  }
+
+  /* Returns new array of columns; compensated channels replaced. comp = raw %*% solve(S) */
+  function compensate(sample, spill) {
+    const cols = sample.cols.slice();
+    if (!spill) return cols;
+    const names = sample.params.map(p => p.name);
+    const idx = spill.channels.map(c => names.indexOf(c));
+    if (idx.some(i => i < 0)) return cols;
+    const inv = invert(spill.matrix), n = idx.length, N = sample.N;
+    const src = idx.map(i => sample.cols[i]);
+    const out = idx.map(() => new Float32Array(N));
+    const x = new Float64Array(n);
+    for (let e = 0; e < N; e++) {
+      for (let k = 0; k < n; k++) x[k] = src[k][e];
+      for (let j = 0; j < n; j++) { let s = 0; for (let k = 0; k < n; k++) s += x[k] * inv[k][j]; out[j][e] = s; }
+    }
+    idx.forEach((i, j) => { cols[i] = out[j]; });
+    return cols;
+  }
+
+  // ------------------------------------------------------------ stats ---
+  function quantile(arr, q, idx) {
+    let v;
+    if (idx) { v = new Float32Array(idx.length); for (let i = 0; i < idx.length; i++) v[i] = arr[idx[i]]; }
+    else v = Float32Array.from(arr);
+    if (!v.length) return NaN;
+    v.sort();
+    const pos = (v.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return v[lo] + (v[hi] - v[lo]) * (pos - lo);
+  }
+  function quantiles(arr, qs, idx) {
+    let v;
+    if (idx) { v = new Float32Array(idx.length); for (let i = 0; i < idx.length; i++) v[i] = arr[idx[i]]; }
+    else v = Float32Array.from(arr);
+    v.sort();
+    return qs.map(q => { if (!v.length) return NaN; const pos = (v.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos); return v[lo] + (v[hi] - v[lo]) * (pos - lo); });
+  }
+  function mean(arr, idx) {
+    let s = 0, n = idx ? idx.length : arr.length;
+    if (idx) for (let i = 0; i < n; i++) s += arr[idx[i]]; else for (let i = 0; i < n; i++) s += arr[i];
+    return n ? s / n : NaN;
+  }
+  function stdev(arr, idx) {
+    const m = mean(arr, idx); let s = 0, n = idx ? idx.length : arr.length;
+    if (idx) for (let i = 0; i < n; i++) s += (arr[idx[i]] - m) ** 2; else for (let i = 0; i < n; i++) s += (arr[i] - m) ** 2;
+    return n > 1 ? Math.sqrt(s / (n - 1)) : NaN;
+  }
+
+  // ------------------------------------------------------- transforms ---
+  function solveD(b, w) {
+    if (w === 0) return b;
+    let lo = 0, hi = b;
+    for (let k = 0; k < 200; k++) {
+      const d = (lo + hi) / 2, f = 2 * (Math.log(d) - Math.log(b)) + w * (b + d);
+      if (f > 0) hi = d; else lo = d;
+    }
+    return (lo + hi) / 2;
+  }
+
+  // Parks, Roederer & Moore (2006) logicle. Output scale: T -> 1, zero -> x1.
+  function makeLogicle(T, W, M, A) {
+    const w = W / (M + A), x2 = A / (M + A), x1 = x2 + w, x0 = x2 + 2 * w, b = (M + A) * Math.LN10;
+    const d = solveD(b, w);
+    const ca = Math.exp(x0 * (b + d)), mfa = Math.exp(b * x1) - ca / Math.exp(d * x1);
+    const a = T / ((Math.exp(b) - mfa) - ca / Math.exp(d)), c = ca * a, f = -mfa * a;
+    const inv = y => {
+      const neg = y < x1, s = neg ? 2 * x1 - y : y;
+      const v = a * Math.exp(b * s) - c * Math.exp(-d * s) + f;
+      return neg ? -v : v;
+    };
+    const Y0 = -0.4, Y1 = 1.4, K = 16384;
+    const ys = new Float64Array(K), xs = new Float64Array(K);
+    for (let k = 0; k < K; k++) { ys[k] = Y0 + (Y1 - Y0) * k / (K - 1); xs[k] = inv(ys[k]); }
+    xs[0] = -Infinity; xs[K - 1] = Infinity;
+    const fwd = x => {
+      if (x <= xs[1]) return ys[1];
+      if (x >= xs[K - 2]) return ys[K - 2];
+      let lo = 1, hi = K - 2;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
+      return ys[lo] + (ys[hi] - ys[lo]) * (x - xs[lo]) / (xs[hi] - xs[lo]);
+    };
+    return { fwd, inv, zero: x1 };
+  }
+
+  function estimateLogicleW(values, T, M) {
+    const neg = []; for (let i = 0; i < values.length; i++) if (values[i] < 0) neg.push(values[i]);
+    if (neg.length < 10) return 0.5;
+    const r = quantile(Float32Array.from(neg), 0.05);
+    let w = (M - Math.log10(T / Math.abs(r))) / 2;
+    if (!isFinite(w) || w < 0) w = 0;
+    return Math.min(w, M / 2 - 0.05, 2);
+  }
+
+  /* cfg: {type, cofactor?, T?, W?, M?, A?, range:[lo,hi]} -> {f, inv} */
+  function transformFns(cfg) {
+    switch (cfg.type) {
+      case 'log': return { f: x => Math.log10(Math.max(x, 1e-3)), inv: y => Math.pow(10, y) };
+      case 'arcsinh': { const c = cfg.cofactor || 150; return { f: x => Math.asinh(x / c), inv: y => Math.sinh(y) * c }; }
+      case 'logicle': { const L = makeLogicle(cfg.T, cfg.W, cfg.M, cfg.A || 0); return { f: L.fwd, inv: L.inv }; }
+      default: return { f: x => x, inv: y => y };
+    }
+  }
+
+  function defaultTransform(name, values, range) {
+    const isScatter = /^(FSC|SSC|FS|SS)/i.test(name), isTime = /time/i.test(name);
+    const [q0, q1] = quantiles(values, [0.0005, 0.9995]);
+    let max = -Infinity; for (let i = 0; i < values.length; i++) if (values[i] > max) max = values[i];
+    if (isScatter || isTime) return linearCfg(q0, q1, max, range);
+    const T = Math.max(range || 262144, max);
+    const M = 4.5, W = estimateLogicleW(values, T, M);
+    return logicleCfg(values, T, M, W, 0);
+  }
+  function logicleCfg(values, T, M, W, A) {
+    const L = makeLogicle(T, W, M, A), lo = Math.max(-0.2, Math.min(0, L.fwd(quantile(values, 0.0005)) - 0.01));
+    return { type: 'logicle', T, W, M, A, range: [lo, 1] };
+  }
+  function linearCfg(q0, q1, max, range) {
+    const hi = (range && q1 > 0.6 * range) ? range : q1 * 1.05;
+    return { type: 'linear', range: [Math.min(0, q0), hi > 0 ? hi : (max || 1)] };
+  }
+  function buildTransform(type, name, values, range, opts = {}) {
+    const [q0, q1] = quantiles(values, [0.0005, 0.9995]);
+    let max = -Infinity; for (let i = 0; i < values.length; i++) if (values[i] > max) max = values[i];
+    const T = Math.max(range || 262144, max);
+    if (type === 'linear') return linearCfg(q0, q1, max, range);
+    if (type === 'log') return { type: 'log', range: [Math.max(0, Math.floor(Math.log10(Math.max(1, quantile(values, 0.02))))), Math.log10(T)] };
+    if (type === 'arcsinh') {
+      const c = opts.cofactor || 150;
+      return { type: 'arcsinh', cofactor: c, range: [Math.asinh(Math.min(q0, -c) / c) - 0.25, Math.asinh(T / c)] };
+    }
+    const M = opts.M || 4.5, W = opts.W != null ? opts.W : estimateLogicleW(values, T, M);
+    return logicleCfg(values, T, M, W, opts.A || 0);
+  }
+
+  /* Transform and clamp into the display range so off-scale events pile on the axis (what you see is what you gate). */
+  function applyTransform(cfg, values) {
+    const { f } = transformFns(cfg), out = new Float32Array(values.length);
+    const [lo, hi] = cfg.range;
+    for (let i = 0; i < values.length; i++) { let y = f(values[i]); out[i] = y < lo ? lo : y > hi ? hi : y; }
+    return out;
+  }
+
+  function ticksFor(cfg) {
+    const [lo, hi] = cfg.range, { f } = transformFns(cfg), major = [], minor = [];
+    if (cfg.type === 'linear') {
+      const span = hi - lo, raw = span / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= 6);
+      for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) major.push({ v, y: v, label: fmtLinear(v) });
+      for (let v = Math.ceil(lo / (step / 5)) * (step / 5); v <= hi; v += step / 5) minor.push({ y: v });
+      return { major, minor };
+    }
+    const cand = [];
+    if (cfg.type !== 'log') cand.push(0);
+    for (let k = 0; k <= 8; k++) {
+      cand.push(Math.pow(10, k)); if (cfg.type !== 'log') cand.push(-Math.pow(10, k));
+    }
+    cand.forEach(v => { const y = f(v); if (y >= lo - 1e-9 && y <= hi + 1e-9) major.push({ v, y, label: fmtPow(v) }); });
+    for (let k = 0; k <= 8; k++) for (let m = 2; m <= 9; m++) {
+      [m * Math.pow(10, k), -m * Math.pow(10, k)].forEach(v => {
+        if (cfg.type === 'log' && v < 0) return;
+        const y = f(v); if (y > lo && y < hi) minor.push({ y });
+      });
+    }
+    major.sort((a, b) => a.y - b.y);
+    return { major, minor };
+  }
+  const SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+  function fmtPow(v) {
+    if (v === 0) return '0';
+    const k = Math.round(Math.log10(Math.abs(v)));
+    if (k === 0) return v < 0 ? '−1' : '1';
+    if (k === 1) return v < 0 ? '−10' : '10';
+    return (v < 0 ? '−' : '') + '10' + String(k).split('').map(c => SUP[c]).join('');
+  }
+  function fmtLinear(v) {
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(a % 1e6 ? 1 : 0) + 'M';
+    if (a >= 1e3) return (v / 1e3).toFixed(a % 1e3 ? 1 : 0).replace(/\.0$/, '') + 'K';
+    return String(+v.toFixed(3));
+  }
+
+  // ----------------------------------------------------------- gates ---
+  function pointInPoly(x, y, px, py) {
+    let inside = false;
+    for (let i = 0, j = px.length - 1; i < px.length; j = i++) {
+      if (((py[i] > y) !== (py[j] > y)) && (x < (px[j] - px[i]) * (y - py[i]) / (py[j] - py[i]) + px[i])) inside = !inside;
+    }
+    return inside;
+  }
+
+  /* gate points are raw values; tx/ty are transform fns; X/Y transformed+clamped columns; parent: Int32Array of indices */
+  function applyGate(gate, X, Y, tfx, tfy, parent) {
+    const out = new Int32Array(parent.length); let n = 0;
+    if (gate.type === 'interval') {
+      let a = tfx.f(gate.pts[0][0]), b = tfx.f(gate.pts[1][0]); if (a > b) [a, b] = [b, a];
+      for (let i = 0; i < parent.length; i++) { const e = parent[i], x = X[e]; if (x >= a && x <= b) out[n++] = e; }
+    } else if (gate.type === 'rect') {
+      let x0 = tfx.f(gate.pts[0][0]), x1 = tfx.f(gate.pts[1][0]), y0 = tfy.f(gate.pts[0][1]), y1 = tfy.f(gate.pts[1][1]);
+      if (x0 > x1) [x0, x1] = [x1, x0]; if (y0 > y1) [y0, y1] = [y1, y0];
+      for (let i = 0; i < parent.length; i++) { const e = parent[i], x = X[e], y = Y[e]; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) out[n++] = e; }
+    } else if (gate.type === 'quad') {
+      const cx = tfx.f(gate.pts[0][0]), cy = tfy.f(gate.pts[0][1]), q = gate.quadrant; // e.g. '+-' = x high, y low
+      const xh = q[0] === '+', yh = q[1] === '+';
+      for (let i = 0; i < parent.length; i++) {
+        const e = parent[i], x = X[e], y = Y[e];
+        if ((xh ? x > cx : x <= cx) && (yh ? y > cy : y <= cy)) out[n++] = e;
+      }
+    } else if (gate.type === 'poly' || gate.type === 'ellipse') {
+      const pts = gate.type === 'ellipse' ? ellipsePoints(gate, tfx, tfy, true) : gate.pts.map(p => [tfx.f(p[0]), tfy.f(p[1])]);
+      const px = pts.map(p => p[0]), py = pts.map(p => p[1]);
+      let bx0 = Math.min(...px), bx1 = Math.max(...px), by0 = Math.min(...py), by1 = Math.max(...py);
+      for (let i = 0; i < parent.length; i++) {
+        const e = parent[i], x = X[e], y = Y[e];
+        if (x < bx0 || x > bx1 || y < by0 || y > by1) continue;
+        if (pointInPoly(x, y, px, py)) out[n++] = e;
+      }
+    }
+    return out.slice(0, n);
+  }
+
+  // Ellipse stored as center + two axis endpoints in raw space; rendered in transformed space
+  function ellipsePoints(gate, tfx, tfy, transformed) {
+    const [c, a, b] = gate.pts.map(p => [tfx.f(p[0]), tfy.f(p[1])]);
+    const ax = [a[0] - c[0], a[1] - c[1]], bx = [b[0] - c[0], b[1] - c[1]], pts = [];
+    for (let k = 0; k < 72; k++) {
+      const t = 2 * Math.PI * k / 72;
+      pts.push([c[0] + ax[0] * Math.cos(t) + bx[0] * Math.sin(t), c[1] + ax[1] * Math.cos(t) + bx[1] * Math.sin(t)]);
+    }
+    return pts;
+  }
+
+  // ---------------------------------------------- spillover from controls ---
+  /* controls: [{primary: channelName, cols: {ch: Float32Array}}]; unstained: {cols}|null */
+  function spilloverFromControls(channels, controls, unstained) {
+    const n = channels.length;
+    const S = channels.map((_, i) => channels.map((__, j) => i === j ? 1 : 0));
+    const report = [];
+    controls.forEach(ctrl => {
+      const i = channels.indexOf(ctrl.primary); if (i < 0) return;
+      const prim = ctrl.cols[ctrl.primary];
+      const [qa, qb, qm] = quantiles(prim, [0.95, 0.998, 0.5]);
+      const pos = [], negIdx = [];
+      for (let e = 0; e < prim.length; e++) { if (prim[e] >= qa && prim[e] <= qb) pos.push(e); if (prim[e] <= qm) negIdx.push(e); }
+      const posI = Int32Array.from(pos), negI = Int32Array.from(negIdx);
+      const negMed = channels.map(ch => unstained ? quantile(unstained.cols[ch], 0.5) : quantile(ctrl.cols[ch], 0.5, negI));
+      const denom = quantile(prim, 0.5, posI) - negMed[i];
+      channels.forEach((ch, j) => { if (j !== i) S[i][j] = (quantile(ctrl.cols[ch], 0.5, posI) - negMed[j]) / denom; });
+      report.push({ channel: ctrl.primary, nPos: pos.length, signal: denom });
+    });
+    return { matrix: S, report };
+  }
+
+  // -------------------------------------------------------- demo data ---
+  function rng(seed) {
+    let a = seed >>> 0;
+    const u = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const n = () => { let x = 0; while (x === 0) x = u(); return Math.sqrt(-2 * Math.log(x)) * Math.cos(2 * Math.PI * u()); };
+    return { u, n };
+  }
+  const DEMO_CH = [
+    { name: 'FSC-A' }, { name: 'FSC-H' }, { name: 'SSC-A' },
+    { name: 'FITC-A', stain: 'CD3' }, { name: 'PE-A', stain: 'CD4' }, { name: 'APC-A', stain: 'CD8' },
+    { name: 'Pacific Blue-A', stain: 'Live/Dead' }, { name: 'Time' }];
+  const DEMO_FL = ['FITC-A', 'PE-A', 'APC-A', 'Pacific Blue-A'];
+  const DEMO_SPILL = [[1, 0.22, 0.004, 0.01], [0.012, 1, 0.03, 0.002], [0.001, 0.008, 1, 0.0], [0.03, 0.006, 0.001, 1]];
+
+  function demoSample(name, seed, N, spec) {
+    const R = rng(seed), P = DEMO_CH.length, cols = DEMO_CH.map(() => new Float32Array(N));
+    const pos = (m, s) => Math.exp(Math.log(m) + s * R.n());
+    const neg = () => 60 * R.n() + 20;
+    for (let e = 0; e < N; e++) {
+      const u = R.u(); let fsc, ssc, cd3 = neg(), cd4 = neg(), cd8 = neg(), ld = pos(300, 0.5), doublet = false;
+      if (u < spec.debris) { fsc = Math.abs(8000 + 9000 * R.n()); ssc = Math.abs(6000 + 8000 * R.n()); ld = pos(8000, 0.5); }
+      else {
+        const v = R.u();
+        if (v < spec.lymph) {
+          fsc = 62000 + 7000 * R.n(); ssc = 18000 + 4000 * R.n();
+          if (R.u() < spec.t) {
+            cd3 = pos(9000, 0.35); const w = R.u();
+            if (w < spec.cd4) cd4 = pos(12000, 0.3); else if (w < spec.cd4 + spec.cd8) cd8 = pos(20000, 0.35);
+          }
+        } else if (v < spec.lymph + 0.25) { fsc = 95000 + 10000 * R.n(); ssc = 60000 + 10000 * R.n(); cd4 = pos(1800, 0.4); }
+        else { fsc = 115000 + 12000 * R.n(); ssc = 150000 + 22000 * R.n(); }
+        if (R.u() < spec.dead) ld = pos(9000, 0.4);
+        if (R.u() < 0.05) doublet = true;
+      }
+      const fscA = doublet ? fsc * (1.7 + 0.2 * R.u()) : fsc;
+      const fscH = doublet ? fsc * 1.05 : fsc * (0.8 + 0.02 * R.n());
+      const truth = [cd3, cd4, cd8, ld];
+      const raw = DEMO_FL.map((_, j) => truth.reduce((s, t, k) => s + t * DEMO_SPILL[k][j], 0) + 40 * R.n());
+      const row = [fscA, fscH, ssc * (doublet ? 1.6 : 1), ...raw, e * 0.05];
+      for (let j = 0; j < P; j++) cols[j][e] = Math.min(row[j], 262143);
+    }
+    return makeSample(name, cols, N);
+  }
+  function demoControl(name, seed, N, which) {
+    const R = rng(seed), cols = DEMO_CH.map(() => new Float32Array(N));
+    for (let e = 0; e < N; e++) {
+      const fsc = 62000 + 7000 * R.n(), ssc = 18000 + 4000 * R.n();
+      const truth = DEMO_FL.map((_, k) => (k === which && R.u() < 0.5) ? Math.exp(Math.log(15000) + 0.5 * R.n()) : 60 * R.n() + 20);
+      const raw = DEMO_FL.map((_, j) => truth.reduce((s, t, k) => s + t * DEMO_SPILL[k][j], 0) + 40 * R.n());
+      const row = [fsc, fsc * 0.8, ssc, ...raw, e * 0.05];
+      row.forEach((v, j) => { cols[j][e] = Math.min(v, 262143); });
+    }
+    return makeSample(name, cols, N);
+  }
+  function makeSample(name, cols, N) {
+    const params = DEMO_CH.map(c => ({ name: c.name, stain: c.stain || '', bits: 32, range: c.name === 'Time' ? 262144 : 262144, e1: 0, e2: 0 }));
+    const spillStr = [DEMO_FL.length, ...DEMO_FL, ...DEMO_SPILL.flat()].join(',');
+    const kw = { $FIL: name + '.fcs', $SPILLOVER: spillStr, $CYT: 'Demo cytometer' };
+    return { name, fileName: name + '.fcs', version: 'DEMO', N, params, cols, keywords: kw, spill: parseSpill(kw, params.map(p => p.name)) };
+  }
+  function demoSet() {
+    return [
+      demoSample('Donor A resting', 11, 40000, { debris: 0.12, lymph: 0.55, t: 0.72, cd4: 0.62, cd8: 0.3, dead: 0.06 }),
+      demoSample('Donor A stimulated', 12, 40000, { debris: 0.18, lymph: 0.6, t: 0.75, cd4: 0.5, cd8: 0.42, dead: 0.14 }),
+      demoSample('Donor A stim + inhibitor', 13, 40000, { debris: 0.2, lymph: 0.52, t: 0.7, cd4: 0.58, cd8: 0.33, dead: 0.25 }),
+      demoControl('Unstained', 21, 15000, -1),
+      demoControl('FITC single stain', 22, 15000, 0),
+      demoControl('PE single stain', 23, 15000, 1),
+      demoControl('APC single stain', 24, 15000, 2),
+      demoControl('Pacific Blue single stain', 25, 15000, 3)
+    ];
+  }
+
+  return {
+    parseFCS, parseTextSegment, writeFCS, invert, compensate, quantile, quantiles, mean, stdev,
+    makeLogicle, estimateLogicleW, logicleCfg, transformFns, defaultTransform, buildTransform, applyTransform, ticksFor,
+    fmtPow, fmtLinear, applyGate, pointInPoly, ellipsePoints, spilloverFromControls, demoSet, DEMO_SPILL, DEMO_FL
+  };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? '' : v);
+  }
+  kids.flat().forEach(k => k != null && e.append(k.nodeType ? k : document.createTextNode(k)));
+  return e;
+};
+
+// ------------------------------------------------------------ state ---
+const S = {
+  samples: [], active: -1, channels: [], stains: {}, ranges: {},
+  transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false,
+  gates: [], nextId: 1, ctrl: {}, overlays: new Set(),
+  view: { x: null, y: null, pop: 'root', tool: 'pointer', sel: null, pt: 2 },
+  tab: 'gate', version: 0, statChans: null
+};
+let nextSampleId = 1;
+const FONT = getComputedStyle(document.body).fontFamily;
+const densityCache = new Map();
+
+const isScatter = ch => /^(FSC|SSC|FS |SS |FS$|SS$)/i.test(ch);
+const isTime = ch => /time/i.test(ch);
+const isFluor = ch => !isScatter(ch) && !isTime(ch) && !/width|^event/i.test(ch);
+const short = ch => (S.stains[ch] && S.stains[ch] !== ch) ? S.stains[ch] : ch;
+const label = ch => (S.stains[ch] && S.stains[ch] !== ch) ? `${S.stains[ch]} (${ch})` : ch;
+function laser(ch) {
+  const s = (ch + ' ' + (S.stains[ch] || '')).toUpperCase();
+  if (isScatter(ch) || isTime(ch)) return 'var(--lnone)';
+  if (/BUV|UV\d|355|INDO/.test(s)) return 'var(--l355)';
+  if (/BV\d|PACIFIC|V\d{3}|^V\d|405|DAPI|HOECHST|SUPER ?BRIGHT 4|EFLUOR ?450|BV/.test(s)) return 'var(--l405)';
+  if (/APC|ALEXA ?(FLUOR ?)?6[4-9]|AF6|R\d{3}|^R\d|640|633|RL\d|CY5\b|IRFP|DRAQ/.test(s)) return 'var(--l640)';
+  if (/PE|MCHERRY|RFP|TDTOMATO|YL\d|YG|561|532|Y\d{3}|^Y\d|G\d{3}|^G\d|PI\b|7-?AAD/.test(s) && !/PERCP/.test(s)) return 'var(--l561)';
+  if (/FITC|GFP|B\d{3}|^B\d|BL\d|488|PERCP|ALEXA ?(FLUOR ?)?488|AF488|FL\d/.test(s)) return 'var(--l488)';
+  return 'var(--lnone)';
+}
+const laserHex = ch => getComputedStyle(document.documentElement).getPropertyValue(laser(ch).slice(4, -1)).trim() || '#A3ADB3';
+
+let toast = function (msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), err ? 7000 : 3200);
+};
+let toastTimer = 0;
+
+// ------------------------------------------------------- data access ---
+const activeSample = () => S.samples[S.active];
+function getComp(s) {
+  if (!s._comp) {
+    try { s._comp = (S.compOn && S.spill) ? Core.compensate(s.fcs, S.spill) : s.fcs.cols; }
+    catch (e) { toast(e.message, true); s._comp = s.fcs.cols; }
+  }
+  return s._comp;
+}
+const getRaw = (s, ch) => getComp(s)[s.idx[ch]];
+const getUncomp = (s, ch) => s.fcs.cols[s.idx[ch]];
+function tfn(ch) { return S.tfns[ch] || (S.tfns[ch] = Core.transformFns(S.transforms[ch])); }
+function getT(s, ch) { return s._t[ch] || (s._t[ch] = Core.applyTransform(S.transforms[ch], getRaw(s, ch))); }
+function getTUncomp(s, ch) { const k = 'u:' + ch; return s._t[k] || (s._t[k] = Core.applyTransform(S.transforms[ch], getUncomp(s, ch))); }
+const gateById = id => S.gates.find(g => g.id === id);
+function getPop(s, id) {
+  if (id === 'root') return s.all;
+  if (s._pops.has(id)) return s._pops.get(id);
+  const g = gateById(id); if (!g) return new Int32Array(0);
+  const parent = getPop(s, g.parent);
+  const idx = Core.applyGate(g, getT(s, g.x), g.y ? getT(s, g.y) : null, tfn(g.x), g.y ? tfn(g.y) : null, parent);
+  s._pops.set(id, idx); return idx;
+}
+function popName(id) { return id === 'root' ? 'All events' : (gateById(id) || {}).name || '?'; }
+function invalidate({ comp = false, channel = null } = {}) {
+  S.version++; densityCache.clear();
+  S.samples.forEach(s => {
+    if (comp) { s._comp = null; s._t = {}; }
+    if (channel) { delete s._t[channel]; delete s._t['u:' + channel]; S.tfns[channel] = null; }
+    s._pops.clear();
+  });
+}
+function children(id) { return S.gates.filter(g => g.parent === id); }
+function dfs(id = 'root', depth = 0, out = []) { out.push({ id, depth }); children(id).forEach(g => dfs(g.id, depth + 1, out)); return out; }
+function descendants(id) { return dfs(id).slice(1).map(d => d.id); }
+
+// ------------------------------------------------------------ loading ---
+function addSample(fcs, bytes) {
+  const names = fcs.params.map(p => p.name);
+  if (!S.samples.length) {
+    S.channels = names;
+    fcs.params.forEach(p => { S.stains[p.name] = p.stain; S.ranges[p.name] = p.range; });
+  } else {
+    const missing = S.channels.filter(c => !names.includes(c));
+    if (missing.length) { toast(`${fcs.name} was skipped because it lacks ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ` and ${missing.length - 4} more` : ''}. All files need the same channels.`, true); return false; }
+  }
+  let name = fcs.name, k = 2;
+  while (S.samples.some(s => s.name === name)) name = `${fcs.name} (${k++})`;
+  const s = { id: nextSampleId++, name, fcs, bytes: bytes || null, idx: Object.fromEntries(names.map((n, i) => [n, i])), _comp: null, _t: {}, _pops: new Map(), all: Int32Array.from({ length: fcs.N }, (_, i) => i) };
+  S.samples.push(s);
+  if (!S.spill && fcs.spill && fcs.spill.channels.every(c => names.includes(c))) {
+    S.fileSpill = JSON.parse(JSON.stringify(fcs.spill)); S.spill = JSON.parse(JSON.stringify(fcs.spill)); S.compOn = true;
+    S.samples.forEach(x => { x._comp = null; x._t = {}; x._pops.clear(); });
+  }
+  if (S.samples.length === 1) {
+    S.active = 0;
+    S.channels.forEach(ch => { S.transforms[ch] = Core.defaultTransform(ch, getRaw(s, ch), S.ranges[ch]); });
+    const find = re => S.channels.find(c => re.test(c));
+    S.view.x = find(/^FSC-A$/i) || find(/^FSC/i) || find(/^FS/i) || S.channels[0];
+    S.view.y = find(/^SSC-A$/i) || find(/^SSC/i) || find(/^SS/i) || S.channels[1] || '';
+  }
+  guessControl(s);
+  return true;
+}
+function guessControl(s) {
+  const n = s.name.toLowerCase();
+  if (/unstain|blank|negative|^neg\b/.test(n)) { S.ctrl[s.id] = 'unstained'; return; }
+  if (!/single|comp|control|ctrl|only|bead/.test(n)) return;
+  const fl = spillChannels();
+  const hit = fl.find(ch => { const base = ch.replace(/-[AHW]$/, '').toLowerCase(); return n.includes(base) || (S.stains[ch] && n.includes(S.stains[ch].toLowerCase())); });
+  if (hit) S.ctrl[s.id] = hit;
+}
+async function addFiles(files) {
+  let added = 0; const problems = [];
+  const realToast = toast; toast = (m, err) => err ? problems.push(m) : null;
+  for (const f of files) {
+    try { const buf = await f.arrayBuffer(); if (addSample(Core.parseFCS(buf, f.name), new Uint8Array(buf))) added++; }
+    catch (e) { problems.push(e.message || `Could not read ${f.name}.`); }
+  }
+  toast = realToast;
+  if (added) { markDirty(); refreshAll(); }
+  if (problems.length) toast((added ? `Added ${added} file${added > 1 ? 's' : ''}. ` : '') + problems.join(' '), true);
+  else if (added) toast(`Added ${added} file${added > 1 ? 's' : ''}.`);
+}
+function loadDemo() {
+  resetState();
+  Core.demoSet().forEach(fcs => addSample(fcs));
+  refreshAll();
+  toast('Demo loaded: 3 samples and 5 compensation controls. Start by gating cells on FSC-A vs SSC-A.');
+}
+
+// ------------------------------------------------------------ plotting ---
+const PAL = ['#1F3BB3', '#14A6C8', '#3DB54A', '#F1D30F', '#F08A0C', '#D7261E'];
+const LUT = (() => {
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), c = PAL.map(hex), out = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255 * (c.length - 1), k = Math.min(Math.floor(t), c.length - 2), f = t - k;
+    for (let j = 0; j < 3; j++) out[i * 3 + j] = Math.round(c[k][j] + (c[k + 1][j] - c[k][j]) * f);
+  }
+  return out;
+})();
+const OVERLAY_COLORS = ['#D8342C', '#0A9BD6', '#7A3FD1', '#E08A00', '#2E8B57', '#C2185B'];
+
+/* Several samples in one dot plot: each series gets a flat colour, alpha-blended by local density
+   so overlapping populations stay readable instead of the last one painting over the rest. */
+function seriesImage(key, series, xr, yr, w, h, pt) {
+  if (key && densityCache.has(key)) return densityCache.get(key);
+  const bw = Math.max(1, Math.round(w / pt)), bh = Math.max(1, Math.round(h / pt));
+  const rgba = new Uint8ClampedArray(bw * bh * 4);
+  const sx = bw / (xr[1] - xr[0]), sy = bh / (yr[1] - yr[0]);
+  series.forEach(S2 => {
+    const counts = new Uint32Array(bw * bh); let max = 0;
+    const xs = S2.xT, ys = S2.yT, ix = S2.idx;
+    for (let q = 0; q < ix.length; q++) {
+      const e = ix[q];
+      let i = Math.floor((xs[e] - xr[0]) * sx), j = Math.floor((ys[e] - yr[0]) * sy);
+      if (i < 0) i = 0; else if (i >= bw) i = bw - 1;
+      if (j < 0) j = 0; else if (j >= bh) j = bh - 1;
+      const c = ++counts[(bh - 1 - j) * bw + i]; if (c > max) max = c;
+    }
+    const lm = Math.log1p(max) || 1, [r, g, b] = [1, 3, 5].map(k => parseInt(S2.color.slice(k, k + 2), 16));
+    for (let k = 0; k < counts.length; k++) {
+      const c = counts[k]; if (!c) continue;
+      const a = 0.3 + 0.65 * Math.log1p(c) / lm, o = k * 4, ia = rgba[o + 3] / 255;
+      const na = a + ia * (1 - a);
+      rgba[o] = (r * a + rgba[o] * ia * (1 - a)) / na;
+      rgba[o + 1] = (g * a + rgba[o + 1] * ia * (1 - a)) / na;
+      rgba[o + 2] = (b * a + rgba[o + 2] * ia * (1 - a)) / na;
+      rgba[o + 3] = na * 255;
+    }
+  });
+  const cv = document.createElement('canvas'); cv.width = bw; cv.height = bh;
+  cv.getContext('2d').putImageData(new ImageData(rgba, bw, bh), 0, 0);
+  if (key) densityCache.set(key, cv);
+  return cv;
+}
+
+function densityImage(key, xT, yT, idx, xr, yr, w, h, pt) {
+  if (key && densityCache.has(key)) return densityCache.get(key);
+  const bw = Math.max(1, Math.round(w / pt)), bh = Math.max(1, Math.round(h / pt));
+  const counts = new Uint32Array(bw * bh); let max = 0;
+  const sx = bw / (xr[1] - xr[0]), sy = bh / (yr[1] - yr[0]), n = idx.length;
+  for (let q = 0; q < n; q++) {
+    const e = idx[q];
+    let i = Math.floor((xT[e] - xr[0]) * sx), j = Math.floor((yT[e] - yr[0]) * sy);
+    if (i < 0) i = 0; else if (i >= bw) i = bw - 1;
+    if (j < 0) j = 0; else if (j >= bh) j = bh - 1;
+    const c = ++counts[(bh - 1 - j) * bw + i]; if (c > max) max = c;
+  }
+  const cv = document.createElement('canvas'); cv.width = bw; cv.height = bh;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(bw, bh), d = img.data, lm = Math.log1p(max);
+  for (let k = 0; k < counts.length; k++) {
+    const c = counts[k]; if (!c) continue;
+    const li = Math.min(255, Math.round(Math.log1p(c) / lm * 255)) * 3;
+    d[k * 4] = LUT[li]; d[k * 4 + 1] = LUT[li + 1]; d[k * 4 + 2] = LUT[li + 2]; d[k * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  if (key) densityCache.set(key, cv);
+  return cv;
+}
+function histogram(xT, idx, xr, bins = 220) {
+  const c = new Float64Array(bins), s = bins / (xr[1] - xr[0]);
+  for (let q = 0; q < idx.length; q++) { let i = Math.floor((xT[idx[q]] - xr[0]) * s); if (i < 0) i = 0; else if (i >= bins) i = bins - 1; c[i]++; }
+  const k = [0.06, 0.24, 0.4, 0.24, 0.06], out = new Float64Array(bins);
+  for (let i = 0; i < bins; i++) { let v = 0; for (let j = -2; j <= 2; j++) { const ii = Math.min(bins - 1, Math.max(0, i + j)); v += c[ii] * k[j + 2]; } out[i] = v; }
+  return out;
+}
+
+/* spec: {xch, ych|null, xT, yT, idx, gates:[{gate,pct,selected}], draft, overlays:[{xT,idx,color}], title, small, pt, cacheKey} */
+function drawPlot(cv, spec, cssW, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return paintPlot(ctx, spec, cssW, cssH);
+}
+/* Draws one plot into any 2D context (canvas or the SVG recorder) with its top-left at the current origin. */
+function paintPlot(ctx, spec, cssW, cssH) {
+  const sm = !!spec.small, fs = (sm ? 10.5 : 11.5) * (spec.fontScale || 1);
+  const g = { ml: sm ? 50 : 66, mt: sm ? 28 : 30, mr: sm ? 10 : 16, mb: sm ? 40 : 50 };
+  g.w = cssW - g.ml - g.mr; g.h = cssH - g.mt - g.mb;
+  const xcfg = S.transforms[spec.xch], hist = !spec.ych, ycfg = hist ? null : S.transforms[spec.ych];
+  const xr = xcfg.range, yr = hist ? [0, 1] : ycfg.range;
+  g.xr = xr; g.yr = yr; g.hist = hist;
+  g.tx = t => g.ml + (t - xr[0]) / (xr[1] - xr[0]) * g.w;
+  g.ty = t => g.mt + g.h - (t - yr[0]) / (yr[1] - yr[0]) * g.h;
+  g.fromPx = (px, py) => [xr[0] + (px - g.ml) / g.w * (xr[1] - xr[0]), yr[0] + (g.mt + g.h - py) / g.h * (yr[1] - yr[0])];
+  if (!spec.transparent) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cssW, cssH); }
+  ctx.font = `${fs}px ${FONT}`;
+
+  // data
+  ctx.save(); ctx.beginPath(); ctx.rect(g.ml, g.mt, g.w, g.h); ctx.clip();
+  if (!hist) {
+    const img = spec.series ? seriesImage(spec.cacheKey, spec.series, xr, yr, g.w, g.h, spec.pt || 2)
+      : densityImage(spec.cacheKey, spec.xT, spec.yT, spec.idx, xr, yr, g.w, g.h, spec.pt || 2);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(img, g.ml, g.mt, g.w, g.h);
+  } else {
+    const curves = spec.curves || [{ xT: spec.xT, idx: spec.idx, color: '#16212A', fill: true }].concat(spec.overlays || []);
+    const hs = curves.map(c => histogram(c.xT, c.idx, xr));
+    const norm = curves.length > 1 ? hs.map(h => Math.max(...h) || 1) : hs.map(() => Math.max(...hs[0]) || 1);
+    curves.forEach((c, k) => {
+      const h = hs[k], n = h.length;
+      ctx.beginPath(); ctx.moveTo(g.tx(xr[0]), g.ty(0));
+      for (let i = 0; i < n; i++) ctx.lineTo(g.tx(xr[0] + (i + 0.5) / n * (xr[1] - xr[0])), g.ty(h[i] / norm[k] * 0.92));
+      ctx.lineTo(g.tx(xr[1]), g.ty(0));
+      if (c.fill) { ctx.fillStyle = 'rgba(10,115,184,.16)'; ctx.fill(); }
+      ctx.strokeStyle = c.color; ctx.lineWidth = c.fill ? 1.4 : 1.8; ctx.stroke();
+    });
+  }
+  ctx.restore();
+
+  // frame + axes
+  ctx.strokeStyle = '#C9D1CF'; ctx.lineWidth = 1; ctx.strokeRect(g.ml + .5, g.mt + .5, g.w - 1, g.h - 1);
+  drawAxis(ctx, g, xcfg, 'x', fs);
+  if (!hist) drawAxis(ctx, g, ycfg, 'y', fs);
+  else { ctx.fillStyle = '#5A6670'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; [0, 0.5, 1].forEach(v => { const y = g.ty(v * 0.92); ctx.fillText(Math.round(v * 100) + '', g.ml - 8, y); ctx.fillRect(g.ml - 5, Math.round(y), 5, 1); }); }
+  // titles
+  ctx.fillStyle = '#16212A'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const xl = label(spec.xch); ctx.font = `600 ${fs + 1}px ${FONT}`;
+  const xw = ctx.measureText(xl).width, xcy = cssH - (sm ? 8 : 11);
+  ctx.fillText(xl, g.ml + g.w / 2 + 7, xcy);
+  ctx.fillStyle = laserHex(spec.xch); ctx.beginPath(); ctx.arc(g.ml + g.w / 2 - xw / 2 - 3, xcy - 4, 4, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(sm ? 11 : 14, g.mt + g.h / 2); ctx.rotate(-Math.PI / 2);
+  const yl = hist ? '% of mode' : label(spec.ych), yw = ctx.measureText(yl).width;
+  ctx.fillStyle = '#16212A'; ctx.textBaseline = 'middle'; ctx.fillText(yl, 7, 0);
+  if (!hist) { ctx.fillStyle = laserHex(spec.ych); ctx.beginPath(); ctx.arc(-yw / 2 - 3, 0, 4, 0, 7); ctx.fill(); }
+  ctx.restore();
+  if (spec.title) {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#16212A';
+    ctx.font = `600 ${fs + 1.5}px ${FONT}`; ctx.fillText(spec.title, g.ml, g.mt - 10);
+    if (spec.subtitle) { const tw = ctx.measureText(spec.title).width; ctx.font = `${fs}px ${FONT}`; ctx.fillStyle = '#5A6670'; ctx.fillText(spec.subtitle, g.ml + tw + 8, g.mt - 10); }
+  }
+  // gates
+  ctx.save(); ctx.beginPath(); ctx.rect(g.ml - 1, g.mt - 1, g.w + 2, g.h + 2); ctx.clip();
+  (spec.gates || []).forEach(o => drawGate(ctx, g, o.gate, spec.pct === false ? null : o.pct, o.selected, fs, spec.labels !== false));
+  if (spec.draft) drawDraft(ctx, g, spec.draft);
+  ctx.restore();
+  // legend goes last so gate labels can never sit on top of it
+  if (spec.legendItems && spec.legendItems.length) drawPanelLegend(ctx, g, spec.legendItems, fs, spec.legendPos);
+  return g;
+}
+
+function drawPanelLegend(ctx, g, items, fs, pos = 'tr') {
+  const sz = fs * 0.92, lh = sz * 1.6, pad = 7;
+  ctx.font = `400 ${sz}px ${FONT}`;
+  const w = Math.max(...items.map(i => ctx.measureText(i.name).width)) + 30 + pad * 2;
+  const h = items.length * lh + pad * 2 - (lh - sz) * 0.4;
+  const x = pos[1] === 'l' ? g.ml + 6 : g.ml + g.w - w - 6;
+  const y = pos[0] === 'b' ? g.mt + g.h - h - 6 : g.mt + 6;
+  ctx.fillStyle = 'rgba(255,255,255,.86)'; roundRect(ctx, x, y, w, h, 5); ctx.fill();
+  ctx.strokeStyle = 'rgba(22,33,42,.18)'; ctx.lineWidth = 1; ctx.stroke();
+  items.forEach((it, k) => {
+    const cy = y + pad + k * lh + sz * 0.55;
+    ctx.fillStyle = it.color; ctx.fillRect(x + pad, cy - 1.5, 16, 3);
+    ctx.fillStyle = '#16212A'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(it.name, x + pad + 22, cy);
+  });
+}
+
+function drawAxis(ctx, g, cfg, ax, fs) {
+  const { major, minor } = Core.ticksFor(cfg);
+  const pos = ax === 'x' ? g.tx : g.ty;
+  ctx.fillStyle = '#8C979F';
+  const drawn = [];
+  const tick = (p, len) => { if (drawn.some(d => Math.abs(d - p) < 3)) return; drawn.push(p); if (ax === 'x') ctx.fillRect(p, g.mt + g.h, 1, len); else ctx.fillRect(g.ml - len, p, len, 1); };
+  ctx.fillStyle = '#5A6670';
+  const lin = cfg.type === 'linear';
+  const pri = major.slice().sort((a, b) => lin ? 0 : (a.v === 0 ? -1 : b.v === 0 ? 1 : Math.abs(b.v) - Math.abs(a.v)));
+  const kept = [], gap = ax === 'x' ? 30 : 16;
+  pri.forEach(t => {
+    const p = pos(t.y);
+    if (!lin && Math.abs(t.v) > 0 && Math.abs(t.v) <= 10 && cfg.type !== 'log') return;
+    if (kept.every(k => Math.abs(k - p) >= gap)) { kept.push(p); t.show = true; }
+  });
+  major.filter(t => t.show).forEach(t => tick(Math.round(pos(t.y)), 6));
+  ctx.fillStyle = '#9AA4AA';
+  major.filter(t => !t.show).forEach(t => tick(Math.round(pos(t.y)), 4));
+  minor.forEach(t => tick(Math.round(pos(t.y)), 3));
+  ctx.fillStyle = '#5A6670';
+  major.forEach(t => {
+    const p = Math.round(pos(t.y));
+    if (!t.show) return;
+    if (ax === 'x') { ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(t.label, p, g.mt + g.h + 8); }
+    else { ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(t.label, g.ml - 9, p); }
+  });
+}
+
+function shapeT(gate) {
+  const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
+  if (gate.type === 'interval') return gate.pts.map(p => [fx.f(p[0]), 0]);
+  if (gate.type === 'quad') return [[fx.f(gate.pts[0][0]), fy.f(gate.pts[0][1])]];
+  if (gate.type === 'ellipse') return Core.ellipsePoints(gate, fx, fy);
+  if (gate.type === 'rect') { const [a, b] = gate.pts.map(p => [fx.f(p[0]), fy.f(p[1])]); return [[a[0], a[1]], [b[0], a[1]], [b[0], b[1]], [a[0], b[1]]]; }
+  return gate.pts.map(p => [fx.f(p[0]), fy.f(p[1])]);
+}
+function handlesT(gate) {
+  const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
+  if (gate.type === 'rect' || gate.type === 'quad') return shapeT(gate);
+  if (gate.type === 'interval') return gate.pts.map(p => [fx.f(p[0]), null]);
+  return gate.pts.map(p => [fx.f(p[0]), fy.f(p[1])]);
+}
+function setHandle(gate, h, t) {
+  const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
+  const rx = fx.inv(t[0]), ry = fy ? fy.inv(t[1]) : 0;
+  if (gate.type === 'rect') {
+    const P = gate.pts;
+    if (h === 0) P[0] = [rx, ry]; else if (h === 2) P[1] = [rx, ry];
+    else if (h === 1) { P[1][0] = rx; P[0][1] = ry; } else { P[0][0] = rx; P[1][1] = ry; }
+  } else if (gate.type === 'interval') gate.pts[h] = [rx, 0];
+  else if (gate.type === 'quad') S.gates.filter(q => q.quadGroup === gate.quadGroup).forEach(q => { q.pts = [[rx, ry]]; });
+  else if (gate.type === 'ellipse' && h === 0) { // moving centre drags the whole ellipse
+    const c = [fx.f(gate.pts[0][0]), fy.f(gate.pts[0][1])], d = [t[0] - c[0], t[1] - c[1]];
+    gate.pts = gate.pts.map(p => [fx.inv(fx.f(p[0]) + d[0]), fy.inv(fy.f(p[1]) + d[1])]);
+  } else gate.pts[h] = [rx, ry];
+}
+function moveGate(gate, orig, d) {
+  const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
+  const mv = pts => pts.map(p => [fx.inv(fx.f(p[0]) + d[0]), fy ? fy.inv(fy.f(p[1]) + d[1]) : 0]);
+  if (gate.type === 'quad') { const np = mv(orig); S.gates.filter(q => q.quadGroup === gate.quadGroup).forEach(q => { q.pts = np.map(p => p.slice()); }); }
+  else gate.pts = mv(orig);
+}
+function labelPos(gate, g) {
+  if (gate.type === 'quad') {
+    const q = gate.quadrant, pad = 8;
+    return { x: q[0] === '+' ? g.ml + g.w - pad : g.ml + pad, y: q[1] === '+' ? g.mt + pad + 8 : g.mt + g.h - pad - 8, align: q[0] === '+' ? 'right' : 'left' };
+  }
+  const s = shapeT(gate);
+  if (gate.type === 'interval') return { x: g.tx((s[0][0] + s[1][0]) / 2), y: g.mt + 16, align: 'center' };
+  let top = Infinity, cx = 0; s.forEach(p => { cx += p[0]; top = Math.min(top, g.ty(p[1])); });
+  let yy = 0; s.forEach(p => { yy = Math.max(yy, p[1]); });
+  const y = g.ty(yy) - 11;
+  return { x: g.tx(cx / s.length), y: y < g.mt + 12 ? g.ty(s.reduce((a, p) => a + p[1], 0) / s.length) : y, align: 'center' };
+}
+function drawGate(ctx, g, gate, pct, selected, fs, showLabel = true) {
+  const s = shapeT(gate);
+  ctx.lineWidth = selected ? 2.2 : 1.6; ctx.strokeStyle = selected ? '#0A73B8' : '#16212A';
+  ctx.beginPath();
+  if (gate.type === 'interval') {
+    const a = g.tx(s[0][0]), b = g.tx(s[1][0]), y = g.mt + 26;
+    ctx.moveTo(a, g.mt + g.h); ctx.lineTo(a, y); ctx.lineTo(b, y); ctx.lineTo(b, g.mt + g.h);
+    ctx.stroke();
+  } else if (gate.type === 'quad') {
+    const x = g.tx(s[0][0]), y = g.ty(s[0][1]);
+    ctx.moveTo(x, g.mt); ctx.lineTo(x, g.mt + g.h); ctx.moveTo(g.ml, y); ctx.lineTo(g.ml + g.w, y); ctx.stroke();
+  } else {
+    s.forEach((p, i) => i ? ctx.lineTo(g.tx(p[0]), g.ty(p[1])) : ctx.moveTo(g.tx(p[0]), g.ty(p[1])));
+    ctx.closePath(); ctx.stroke();
+    if (selected) { ctx.fillStyle = 'rgba(10,115,184,.07)'; ctx.fill(); }
+  }
+  if (showLabel) drawGateLabel(ctx, g, gate, pct, selected, fs);
+  if (selected) {
+    handlesT(gate).forEach(p => {
+      const x = g.tx(p[0]), y = p[1] == null ? g.mt + 26 : g.ty(p[1]);
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#0A73B8'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.rect(x - 4.5, y - 4.5, 9, 9); ctx.fill(); ctx.stroke();
+    });
+  }
+}
+function drawGateLabel(ctx, g, gate, pct, selected, fs) {
+  const lp = labelPos(gate, g);
+  const txt = `${gate.name}${pct != null && isFinite(pct) ? '  ' + fmtPct(pct) : ''}`;
+  ctx.font = `600 ${fs}px ${FONT}`;
+  const w = ctx.measureText(txt).width + 12, h = fs + 8;
+  let x0 = lp.align === 'center' ? lp.x - w / 2 : lp.align === 'right' ? lp.x - w : lp.x;
+  x0 = Math.max(g.ml + 2, Math.min(g.ml + g.w - w - 2, x0));
+  const y0 = Math.max(g.mt + 2, Math.min(g.mt + g.h - h - 2, lp.y - h / 2));
+  ctx.fillStyle = selected ? 'rgba(10,115,184,.94)' : 'rgba(255,255,255,.9)';
+  roundRect(ctx, x0, y0, w, h, 5); ctx.fill();
+  if (!selected) { ctx.strokeStyle = 'rgba(22,33,42,.25)'; ctx.lineWidth = 1; ctx.stroke(); }
+  ctx.fillStyle = selected ? '#fff' : '#16212A'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x0 + 6, y0 + h / 2 + 0.5);
+}
+function drawDraft(ctx, g, d) {
+  ctx.strokeStyle = '#0A73B8'; ctx.lineWidth = 1.8; ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  if (d.type === 'rect') { const [a, b] = d.pts; ctx.rect(g.tx(a[0]), g.ty(a[1]), g.tx(b[0]) - g.tx(a[0]), g.ty(b[1]) - g.ty(a[1])); }
+  else if (d.type === 'interval') { const a = g.tx(d.pts[0][0]), b = g.tx(d.pts[1][0]); ctx.moveTo(a, g.mt + g.h); ctx.lineTo(a, g.mt + 26); ctx.lineTo(b, g.mt + 26); ctx.lineTo(b, g.mt + g.h); }
+  else if (d.type === 'ellipse') {
+    const c = d.pts[0], a = d.pts[1], b = d.pts[2];
+    for (let k = 0; k <= 72; k++) { const t = 2 * Math.PI * k / 72, x = c[0] + (a[0] - c[0]) * Math.cos(t) + (b[0] - c[0]) * Math.sin(t), y = c[1] + (a[1] - c[1]) * Math.cos(t) + (b[1] - c[1]) * Math.sin(t); k ? ctx.lineTo(g.tx(x), g.ty(y)) : ctx.moveTo(g.tx(x), g.ty(y)); }
+  } else if (d.type === 'poly') {
+    d.pts.forEach((p, i) => i ? ctx.lineTo(g.tx(p[0]), g.ty(p[1])) : ctx.moveTo(g.tx(p[0]), g.ty(p[1])));
+    if (d.hover) ctx.lineTo(g.tx(d.hover[0]), g.ty(d.hover[1]));
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  if (d.type === 'poly') d.pts.forEach((p, i) => { ctx.fillStyle = i ? '#0A73B8' : '#fff'; ctx.strokeStyle = '#0A73B8'; ctx.beginPath(); ctx.arc(g.tx(p[0]), g.ty(p[1]), i ? 3 : 5, 0, 7); ctx.fill(); ctx.stroke(); });
+}
+function roundRect(ctx, x, y, w, h, r) {
+  const P = Math.PI; ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arc(x + w - r, y + r, r, -P / 2, 0);
+  ctx.lineTo(x + w, y + h - r); ctx.arc(x + w - r, y + h - r, r, 0, P / 2); ctx.lineTo(x + r, y + h); ctx.arc(x + r, y + h - r, r, P / 2, P);
+  ctx.lineTo(x, y + r); ctx.arc(x + r, y + r, r, P, 1.5 * P); ctx.closePath();
+}
+const fmtPct = p => (p >= 10 ? p.toFixed(1) : p >= 1 ? p.toFixed(2) : p.toPrecision(2)) + '%';
+const fmtNum = v => { const a = Math.abs(v); if (!isFinite(v)) return '–'; if (a >= 1e4) return v.toExponential(2).replace('e+', '×10^'); if (a >= 100) return v.toFixed(0); if (a >= 1) return v.toFixed(2); return v.toPrecision(3); };
+const fmtInt = n => n.toLocaleString('en-US');
+const fmtStat = v => !isFinite(v) ? '–' : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : Math.abs(v) >= 1 ? v.toFixed(1) : v.toPrecision(2);
+
+// ------------------------------------------------------------ gate tab ---
+const cv = $('#plot');
+let G = null, drag = null, draft = null, hoverT = null, pendingName = false;
+
+function plotGates() {
+  const v = S.view, hist = !v.y;
+  return S.gates.filter(g => g.parent === v.pop && g.x === v.x && (hist ? g.type === 'interval' : (g.type !== 'interval' && g.y === v.y)));
+}
+function plotSize() {
+  const box = $('#plotBox'), w = box.clientWidth, h = Math.max(360, window.innerHeight - box.getBoundingClientRect().top - 40);
+  const sz = Math.max(320, Math.min(w, h, 720));
+  return [sz, sz];
+}
+function renderPlot() {
+  const s = activeSample(); if (!s) return;
+  const v = S.view, [w, h] = plotSize();
+  const pop = getPop(s, v.pop), parentN = pop.length;
+  const gates = plotGates().map(g => ({ gate: g, pct: parentN ? getPop(s, g.id).length / parentN * 100 : 0, selected: v.sel === g.id }));
+  const overlays = !v.y ? [...S.overlays].map((id, k) => { const o = S.samples.find(x => x.id === id); return o && o !== s ? { xT: getT(o, v.x), idx: getPop(o, v.pop), color: OVERLAY_COLORS[k % OVERLAY_COLORS.length] } : null; }).filter(Boolean) : [];
+  G = drawPlot(cv, {
+    xch: v.x, ych: v.y || null, xT: getT(s, v.x), yT: v.y ? getT(s, v.y) : null, idx: pop, gates, draft, overlays, pt: v.pt,
+    title: popName(v.pop), subtitle: `${fmtInt(parentN)} events`,
+    cacheKey: `${s.id}|${v.pop}|${v.x}|${v.y}|${w}|${h}|${v.pt}|${S.version}`
+  }, w, h);
+  renderStatus();
+}
+function renderStatus() {
+  const s = activeSample(); if (!s) return;
+  const parts = [el('span', {}, 'Sample ', el('b', {}, s.name))];
+  if (hoverT && G) {
+    const fx = tfn(S.view.x); parts.push(el('span', {}, `${short(S.view.x)} `, el('b', {}, fmtNum(fx.inv(hoverT[0])))));
+    if (S.view.y) parts.push(el('span', {}, `${short(S.view.y)} `, el('b', {}, fmtNum(tfn(S.view.y).inv(hoverT[1])))));
+  } else parts.push(el('span', {}, S.view.tool === 'poly' && draft ? 'Click to add points. Double-click or press Enter to close the polygon.' : ''));
+  $('#status').replaceChildren(...parts, el('button', { class: 'linkbtn', onclick: savePlotPng }, 'Save plot as PNG'));
+}
+function renderToolbar() {
+  const mk = (sel, val, withHist) => {
+    const opts = (withHist ? [el('option', { value: '' }, 'Histogram')] : []).concat(S.channels.map(c => el('option', { value: c }, label(c))));
+    sel.replaceChildren(...opts); sel.value = val || '';
+  };
+  mk($('#selX'), S.view.x, false); mk($('#selY'), S.view.y, true);
+  const hist = !S.view.y;
+  document.querySelectorAll('#tools button').forEach(b => {
+    const t = b.dataset.tool;
+    b.disabled = hist ? ['rect', 'poly', 'ellipse', 'quad'].includes(t) : t === 'interval';
+    if (b.disabled && S.view.tool === t) S.view.tool = 'pointer';
+    b.setAttribute('aria-pressed', S.view.tool === t);
+  });
+  cv.style.cursor = S.view.tool === 'pointer' ? 'default' : 'crosshair';
+}
+function renderInspector() {
+  const box = $('#axisInsp'); box.replaceChildren(el('h2', {}, 'Axes'));
+  [S.view.x, S.view.y].filter(Boolean).forEach(ch => box.append(...axisControls(ch)));
+  // gate list
+  const s = activeSample(), list = $('#gateList'); list.replaceChildren();
+  const gs = plotGates(), parentN = s ? getPop(s, S.view.pop).length : 0;
+  gs.forEach(g => list.append(el('li', { class: S.view.sel === g.id ? 'on' : '', onclick: () => { S.view.sel = g.id; setTool('pointer'); renderGateTab(); } },
+    el('span', { class: 'gname' }, g.name), el('span', { class: 'scount' }, parentN ? fmtPct(getPop(s, g.id).length / parentN * 100) : ''))));
+  $('#gateHint').classList.toggle('hidden', gs.length > 0);
+  const sel = gateById(S.view.sel), btns = $('#gateBtns'); btns.replaceChildren();
+  if (sel && gs.includes(sel)) {
+    btns.append(el('button', { class: 'btn', onclick: () => { S.view.pop = sel.id; S.view.sel = null; renderGateTab(); renderTree(); } }, 'Plot this population'),
+      el('button', { class: 'btn', onclick: e => renameGate(sel, e.target) }, 'Rename'),
+      el('button', { class: 'btn danger', onclick: () => deleteGate(sel.id) }, 'Delete'));
+  }
+  // overlays
+  const ov = $('#overlaySec'); ov.classList.toggle('hidden', !!S.view.y || S.samples.length < 2);
+  if (!S.view.y) {
+    const others = S.samples.filter(x => x !== s);
+    let k = 0;
+    $('#overlayList').replaceChildren(el('div', { class: 'chk' }, el('input', { type: 'checkbox', checked: true, disabled: true, 'aria-label': 'Active sample' }), el('span', { class: 'swatch', style: 'background:#16212A' }), s.name + ' (active)'), ...others.map(o => {
+      const on = S.overlays.has(o.id), color = on ? OVERLAY_COLORS[[...S.overlays].indexOf(o.id) % OVERLAY_COLORS.length] : 'transparent'; k++;
+      return el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: on, onchange: e => { e.target.checked ? S.overlays.add(o.id) : S.overlays.delete(o.id); renderGateTab(); } }), el('span', { class: 'swatch', style: `background:${color}` }), o.name);
+    }));
+  }
+}
+function axisControls(ch) {
+  const cfg = S.transforms[ch], out = [];
+  out.push(el('div', { class: 'axhead' }, el('span', { class: 'laser', style: `background:${laser(ch)}` }), label(ch)));
+  const typeSel = el('select', { id: 'tt-' + ch, onchange: e => setTransformType(ch, e.target.value) },
+    ...[['linear', 'Linear'], ['log', 'Log'], ['arcsinh', 'Arcsinh'], ['logicle', 'Logicle']].map(([v, t]) => el('option', { value: v, selected: cfg.type === v }, t)));
+  out.push(el('div', { class: 'field' }, el('label', { for: 'tt-' + ch }, 'Transform'), typeSel));
+  const num = (lab, key, step, min, max, fn) => {
+    const id = `tp-${key}-${ch}`;
+    return el('div', { class: 'field' }, el('label', { for: id }, lab), el('input', { id, type: 'number', step, min, max, value: +(+fn.get()).toPrecision(6), onchange: e => { const v = parseFloat(e.target.value); if (isFinite(v)) { fn.set(v); commitTransform(ch); } } }));
+  };
+  if (cfg.type === 'logicle') {
+    out.push(num('Width (W)', 'W', 0.05, 0, 2.2, { get: () => cfg.W, set: v => { cfg.W = Math.max(0, Math.min(v, cfg.M / 2 - 0.01)); } }));
+    out.push(num('Decades (M)', 'M', 0.1, 2, 7, { get: () => cfg.M, set: v => { cfg.M = v; } }));
+    out.push(num('Top (T)', 'T', 1000, 100, 1e9, { get: () => cfg.T, set: v => { cfg.T = v; } }));
+  } else if (cfg.type === 'arcsinh') {
+    out.push(num('Cofactor', 'c', 5, 0.1, 1e5, { get: () => cfg.cofactor, set: v => { const top = Math.sinh(cfg.range[1]) * cfg.cofactor, bot = Math.sinh(cfg.range[0]) * cfg.cofactor; cfg.cofactor = v; cfg.range = [Math.asinh(bot / v), Math.asinh(top / v)]; } }));
+  } else if (cfg.type === 'linear') {
+    out.push(num('Minimum', 'lo', 1000, -1e9, 1e9, { get: () => cfg.range[0], set: v => { if (v < cfg.range[1]) cfg.range[0] = v; } }));
+    out.push(num('Maximum', 'hi', 1000, -1e9, 1e9, { get: () => cfg.range[1], set: v => { if (v > cfg.range[0]) cfg.range[1] = v; } }));
+  } else if (cfg.type === 'log') {
+    out.push(num('From decade', 'lo', 1, -2, 9, { get: () => cfg.range[0], set: v => { if (v < cfg.range[1]) cfg.range[0] = v; } }));
+    out.push(num('To decade', 'hi', 0.1, -2, 10, { get: () => cfg.range[1], set: v => { if (v > cfg.range[0]) cfg.range[1] = v; } }));
+  }
+  out.push(el('div', { class: 'minibtns' },
+    el('button', { class: 'btn', onclick: () => setTransformType(ch, cfg.type) }, 'Re-estimate'),
+    isFluor(ch) ? el('button', { class: 'btn', title: 'Use this transform for every fluorescence channel', onclick: () => applyToAllFluor(ch) }, 'Use for all markers') : null));
+  return out;
+}
+function setTransformType(ch, type) {
+  const s = activeSample();
+  S.transforms[ch] = Core.buildTransform(type, ch, getRaw(s, ch), S.ranges[ch], type === S.transforms[ch].type && type === 'arcsinh' ? { cofactor: S.transforms[ch].cofactor } : {});
+  commitTransform(ch);
+}
+function applyToAllFluor(ch) {
+  const src = S.transforms[ch], s = activeSample();
+  S.channels.filter(isFluor).forEach(c => {
+    if (c === ch) return;
+    S.transforms[c] = src.type === 'logicle' ? Core.buildTransform('logicle', c, getRaw(s, c), S.ranges[c], { M: src.M }) : Core.buildTransform(src.type, c, getRaw(s, c), S.ranges[c], { cofactor: src.cofactor });
+    invalidate({ channel: c });
+  });
+  commitTransform(ch); toast(`Applied ${src.type} to all marker channels.`);
+}
+function commitTransform(ch) {
+  markDirty();
+  const c = S.transforms[ch];
+  if (c.type === 'logicle') { const s = activeSample(); S.transforms[ch] = Core.logicleCfg(getRaw(s, ch), c.T, c.M, c.W, c.A || 0); }
+  invalidate({ channel: ch }); renderGateTab(); renderTree();
+}
+
+function renderGateTab() { renderToolbar(); renderPlot(); renderInspector(); }
+function setTool(t) { S.view.tool = t; draft = null; renderToolbar(); renderPlot(); }
+
+// ---------- canvas interaction
+const evPos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+function snap(t, r) { const span = r[1] - r[0]; if (t > r[1] - 0.012 * span) return r[1] + 0.004 * span; if (t < r[0] + 0.012 * span) return r[0] - 0.004 * span; return t; }
+const snapT = t => [snap(t[0], G.xr), G.hist ? 0 : snap(t[1], G.yr)];
+function hitHandle(px, py) {
+  const sel = gateById(S.view.sel); if (!sel || !plotGates().includes(sel)) return -1;
+  const hs = handlesT(sel);
+  for (let i = 0; i < hs.length; i++) { const x = G.tx(hs[i][0]), y = hs[i][1] == null ? G.mt + 26 : G.ty(hs[i][1]); if (Math.abs(x - px) < 8 && Math.abs(y - py) < 8) return i; }
+  return -1;
+}
+function hitGate(t) {
+  const gs = plotGates().slice().reverse();
+  for (const g of gs) {
+    const s = shapeT(g);
+    if (g.type === 'interval') { const a = Math.min(s[0][0], s[1][0]), b = Math.max(s[0][0], s[1][0]); if (t[0] >= a && t[0] <= b) return g; }
+    else if (g.type === 'quad') { const q = (t[0] > s[0][0] ? '+' : '-') + (t[1] > s[0][1] ? '+' : '-'); if (g.quadrant === q) return g; }
+    else if (Core.pointInPoly(t[0], t[1], s.map(p => p[0]), s.map(p => p[1]))) return g;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', e => {
+  if (!G || pendingName) return;
+  const [px, py] = evPos(e), t = G.fromPx(px, py), tool = S.view.tool;
+  cv.setPointerCapture(e.pointerId);
+  if (tool === 'pointer') {
+    const h = hitHandle(px, py);
+    if (h >= 0) { drag = { mode: 'handle', h, gate: gateById(S.view.sel) }; return; }
+    const g = hitGate(t);
+    S.view.sel = g ? g.id : null;
+    if (g) drag = { mode: 'move', gate: g, start: t, orig: g.pts.map(p => p.slice()), moved: false };
+    renderPlot(); renderInspector(); return;
+  }
+  const st = snapT(t);
+  if (tool === 'rect') draft = { type: 'rect', pts: [st, st.slice()] }, drag = { mode: 'draw' };
+  else if (tool === 'interval') draft = { type: 'interval', pts: [st, st.slice()] }, drag = { mode: 'draw' };
+  else if (tool === 'ellipse') draft = { type: 'ellipse', pts: [t, t.slice(), t.slice()] }, drag = { mode: 'draw' };
+  else if (tool === 'quad') { createQuad(t); return; }
+  else if (tool === 'poly') {
+    if (!draft) draft = { type: 'poly', pts: [] };
+    const f = draft.pts[0];
+    if (f && draft.pts.length >= 3 && Math.hypot(G.tx(f[0]) - px, G.ty(f[1]) - py) < 9) { finishPoly(); return; }
+    draft.pts.push(st);
+  }
+  renderPlot();
+});
+cv.addEventListener('pointermove', e => {
+  if (!G) return;
+  const [px, py] = evPos(e), t = G.fromPx(px, py);
+  const inside = px >= G.ml && px <= G.ml + G.w && py >= G.mt && py <= G.mt + G.h;
+  hoverT = inside ? t : null;
+  if (drag && drag.mode === 'draw' && draft) {
+    if (draft.type === 'ellipse') { const c = draft.pts[0]; draft.pts[1] = [t[0], c[1]]; draft.pts[2] = [c[0], t[1]]; }
+    else draft.pts[1] = snapT(t);
+    renderPlot(); return;
+  }
+  if (drag && drag.mode === 'handle') { setHandle(drag.gate, drag.h, G.hist ? [snap(t[0], G.xr), 0] : (drag.gate.type === 'ellipse' ? t : snapT(t))); invalidateGates(); renderPlot(); return; }
+  if (drag && drag.mode === 'move') {
+    const d = [t[0] - drag.start[0], G.hist ? 0 : t[1] - drag.start[1]];
+    if (Math.abs(d[0]) + Math.abs(d[1]) > 0) { drag.moved = true; moveGate(drag.gate, drag.orig, d); invalidateGates(); renderPlot(); }
+    return;
+  }
+  if (draft && draft.type === 'poly') { draft.hover = snapT(t); renderPlot(); return; }
+  if (S.view.tool === 'pointer') cv.style.cursor = hitHandle(px, py) >= 0 ? 'grab' : (hitGate(t) && S.view.sel ? 'move' : 'default');
+  renderStatus();
+});
+cv.addEventListener('pointerleave', () => { hoverT = null; renderStatus(); });
+cv.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.mode === 'draw' && draft) {
+    const a = draft.pts[0], b = draft.pts[1] || a;
+    const small = draft.type === 'ellipse' ? (Math.abs(G.tx(draft.pts[1][0]) - G.tx(a[0])) < 4 || Math.abs(G.ty(draft.pts[2][1]) - G.ty(a[1])) < 4)
+      : (Math.abs(G.tx(b[0]) - G.tx(a[0])) < 4 || (!G.hist && Math.abs(G.ty(b[1]) - G.ty(a[1])) < 4));
+    if (small) { draft = null; renderPlot(); return; }
+    proposeGate(draft);
+  } else if (d.mode === 'handle' || (d.mode === 'move' && d.moved)) { afterGateEdit(); }
+});
+cv.addEventListener('dblclick', () => { if (draft && draft.type === 'poly') { draft.pts.pop(); finishPoly(); } });
+function finishPoly() {
+  if (!draft || draft.pts.length < 3) { toast('A polygon needs at least three points.', true); return; }
+  delete draft.hover; proposeGate(draft);
+}
+function invalidateGates() { markDirty(); S.version++; densityCache.clear(); S.samples.forEach(s => s._pops.clear()); }
+function afterGateEdit() { invalidateGates(); renderGateTab(); renderTree(); }
+
+function suggestName(d) {
+  const x = S.view.x, y = S.view.y;
+  if (d.type === 'interval') return `${short(x)}+`;
+  if (isScatter(x) && isScatter(y)) {
+    const bx = x.replace(/-[AHW]$/i, ''), by = y.replace(/-[AHW]$/i, '');
+    if (bx === by) return 'Single cells';
+    return S.view.pop === 'root' ? 'Cells' : 'Population ' + (S.gates.length + 1);
+  }
+  if (isFluor(x) && !isFluor(y)) return `${short(x)}+`;
+  if (isFluor(y) && !isFluor(x)) return `${short(y)}+`;
+  if (/live|dead|viab|zombie|7-?aad|dapi/i.test(short(x) + short(y))) return 'Live cells';
+  return 'Population ' + (S.gates.length + 1);
+}
+function proposeGate(d) {
+  const fx = tfn(S.view.x), fy = S.view.y ? tfn(S.view.y) : null;
+  let pts;
+  if (d.type === 'interval') pts = d.pts.map(p => [fx.inv(p[0]), 0]);
+  else pts = d.pts.map(p => [fx.inv(p[0]), fy.inv(p[1])]);
+  const gate = { id: 'g' + (S.nextId++), name: '', parent: S.view.pop, type: d.type, x: S.view.x, y: d.type === 'interval' ? null : S.view.y, pts };
+  const r = cv.getBoundingClientRect();
+  askName({ left: r.left + r.width / 2 - 125, top: r.top + 60 }, 'Name this population', suggestName(d), name => {
+    draft = null;
+    if (name == null) { renderPlot(); return; }
+    gate.name = name || suggestName(d); S.gates.push(gate); S.view.sel = gate.id;
+    afterGateEdit();
+  });
+}
+function createQuad(t) {
+  const fx = tfn(S.view.x), fy = tfn(S.view.y), raw = [fx.inv(t[0]), fy.inv(t[1])], grp = 'q' + S.nextId;
+  const nx = short(S.view.x), ny = short(S.view.y);
+  [['-+', `${nx}− ${ny}+`], ['++', `${nx}+ ${ny}+`], ['+-', `${nx}+ ${ny}−`], ['--', `${nx}− ${ny}−`]].forEach(([q, name]) => {
+    S.gates.push({ id: 'g' + (S.nextId++), name, parent: S.view.pop, type: 'quad', quadrant: q, quadGroup: grp, x: S.view.x, y: S.view.y, pts: [raw.slice()] });
+  });
+  S.view.sel = null; setTool('pointer'); afterGateEdit();
+}
+function askName(pos, title, def, cb) {
+  pendingName = true;
+  const input = el('input', { type: 'text', value: def, 'aria-label': title });
+  const close = v => { pop.remove(); pendingName = false; cb(v); };
+  const pop = el('div', { class: 'pop', style: `position:fixed;left:${Math.max(8, pos.left)}px;top:${Math.max(8, pos.top)}px` },
+    el('label', {}, title), input,
+    el('div', { class: 'row' }, el('button', { class: 'btn', onclick: () => close(null) }, 'Cancel'), el('button', { class: 'btn primary', onclick: () => close(input.value.trim()) }, 'Save')));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') close(input.value.trim()); if (e.key === 'Escape') close(null); e.stopPropagation(); });
+  document.body.append(pop); input.focus(); input.select();
+}
+function renameGate(g, anchor) {
+  const r = anchor.getBoundingClientRect();
+  askName({ left: r.left, top: r.bottom + 6 }, 'Rename population', g.name, v => { if (v) { g.name = v; renderAll(); } });
+}
+function deleteGate(id) {
+  const g = gateById(id); if (!g) return;
+  const kill = [id, ...descendants(id)];
+  if (kill.length > 1 && !confirm(`Delete "${g.name}" and ${kill.length - 1} population${kill.length > 2 ? 's' : ''} inside it?`)) return;
+  S.gates = S.gates.filter(x => !kill.includes(x.id));
+  if (kill.includes(S.view.pop)) S.view.pop = g.parent;
+  if (kill.includes(S.view.sel)) S.view.sel = null;
+  invalidateGates(); renderAll();
+}
+
+// ------------------------------------------------------------ sidebar ---
+function renderSamples() {
+  const ul = $('#sampleList'); ul.replaceChildren();
+  $('#sampleHint').classList.toggle('hidden', S.samples.length > 0);
+  S.samples.forEach((s, i) => {
+    const ctrl = S.ctrl[s.id];
+    ul.append(el('li', { class: i === S.active ? 'on' : '', title: s.fcs.fileName, onclick: () => { S.active = i; S.overlays.delete(s.id); renderAll(); }, ondblclick: e => askName({ left: e.clientX, top: e.clientY }, 'Rename sample', s.name, v => { if (v) { s.name = v; renderAll(); } }) },
+      el('span', { class: 'sname' }, s.name),
+      el('span', { class: 'scount' }, ctrl ? (ctrl === 'unstained' ? 'unstained' : 'control') : fmtInt(s.fcs.N)),
+      el('button', { class: 'iconbtn', 'aria-label': `Remove ${s.name}`, title: 'Remove sample', onclick: e => { e.stopPropagation(); removeSample(i); } }, '×')));
+  });
+}
+function removeSample(i) {
+  const s = S.samples[i]; S.samples.splice(i, 1); S.overlays.delete(s.id); delete S.ctrl[s.id];
+  if (S.active >= S.samples.length) S.active = S.samples.length - 1;
+  if (!S.samples.length) { Object.assign(S, { channels: [], transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false, gates: [], active: -1 }); S.view.pop = 'root'; }
+  densityCache.clear(); refreshAll();
+}
+function renderTree() {
+  const ul = $('#popTree'); ul.replaceChildren(); const s = activeSample(); if (!s) return;
+  dfs().forEach(({ id, depth }) => {
+    const g = gateById(id), n = getPop(s, id).length, pn = g ? getPop(s, g.parent).length : n;
+    const li = el('li', { class: S.view.pop === id ? 'on' : '', style: `padding-left:${8 + depth * 14}px`, title: id === 'root' ? '' : `${label(g.x)}${g.y ? ' vs ' + label(g.y) : ''}`, onclick: () => { S.view.pop = id; S.view.sel = null; if (S.tab !== 'gate') switchTab('gate'); else renderGateTab(); renderTree(); } },
+      depth ? el('span', { class: 'guide', 'aria-hidden': 'true' }, '└') : null,
+      el('span', { class: 'pname' }, popName(id)),
+      el('span', { class: 'pct' }, id === 'root' ? fmtInt(n) : (pn ? fmtPct(n / pn * 100) : '–')));
+    if (g) li.append(el('span', { class: 'acts' },
+      el('button', { class: 'iconbtn', title: 'Show where this gate was drawn', 'aria-label': `Show gate ${g.name}`, onclick: e => { e.stopPropagation(); S.view.pop = g.parent; S.view.x = g.x; S.view.y = g.y || ''; S.view.sel = g.id; setTool('pointer'); switchTab('gate'); renderTree(); } }, '◎'),
+      el('button', { class: 'iconbtn', title: 'Rename', 'aria-label': `Rename ${g.name}`, onclick: e => { e.stopPropagation(); renameGate(g, e.currentTarget); } }, '✎'),
+      el('button', { class: 'iconbtn', title: 'Delete', 'aria-label': `Delete ${g.name}`, onclick: e => { e.stopPropagation(); deleteGate(g.id); } }, '×')));
+    ul.append(li);
+  });
+}
+
+// ------------------------------------------------------------ scheme tab ---
+function renderScheme() {
+  const s = activeSample(), grid = $('#schemeGrid'); grid.replaceChildren(); if (!s) return;
+  const groups = [];
+  dfs().forEach(({ id }) => {
+    const m = new Map();
+    children(id).forEach(g => { const k = g.x + '|' + (g.y || ''); if (!m.has(k)) m.set(k, []); m.get(k).push(g); });
+    m.forEach(gs => groups.push({ parent: id, gates: gs }));
+  });
+  $('#schemeLead').textContent = groups.length ? `Every gate for ${s.name}, drawn on its parent population. Percentages are of the parent.` : 'No gates yet. Draw gates on the Gate tab and the full strategy will appear here.';
+  groups.forEach(gr => {
+    const c = el('canvas'); grid.append(c);
+    const g0 = gr.gates[0], pop = getPop(s, gr.parent), pn = pop.length;
+    const w = Math.max(280, Math.min(380, c.clientWidth || 300));
+    drawPlot(c, {
+      xch: g0.x, ych: g0.y, xT: getT(s, g0.x), yT: g0.y ? getT(s, g0.y) : null, idx: pop, small: true, pt: 2,
+      gates: gr.gates.map(g => ({ gate: g, pct: pn ? getPop(s, g.id).length / pn * 100 : 0 })),
+      title: popName(gr.parent), subtitle: fmtInt(pn), cacheKey: `sch|${s.id}|${gr.parent}|${g0.x}|${g0.y}|${w}|${S.version}`
+    }, w, w);
+  });
+}
+function schemePng() {
+  const cs = [...document.querySelectorAll('#schemeGrid canvas')]; if (!cs.length) return toast('Nothing to save yet.', true);
+  const cols = Math.min(3, cs.length), rows = Math.ceil(cs.length / cols), W = cs[0].width, H = cs[0].height, pad = 16;
+  const out = document.createElement('canvas'); out.width = cols * W + (cols + 1) * pad; out.height = rows * H + (rows + 1) * pad;
+  const ctx = out.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, out.width, out.height);
+  cs.forEach((c, i) => ctx.drawImage(c, pad + (i % cols) * (W + pad), pad + Math.floor(i / cols) * (H + pad)));
+  download(out.toDataURL('image/png'), `${activeSample().name}_gating_scheme.png`);
+}
+
+// ------------------------------------------------------------ comp tab ---
+function spillChannels() { return S.spill ? S.spill.channels : S.channels.filter(isFluor); }
+function ensureSpill() {
+  if (!S.spill) { const ch = S.channels.filter(isFluor); S.spill = { channels: ch, matrix: ch.map((_, i) => ch.map((__, j) => i === j ? 1 : 0)) }; }
+}
+function renderComp() {
+  if (!S.samples.length) return;
+  ensureSpill();
+  $('#compOn').checked = S.compOn;
+  $('#btnCompFile').disabled = !S.fileSpill;
+  const chs = S.spill.channels, M = S.spill.matrix, tbl = $('#matrix');
+  const head = el('tr', {}, el('th', { class: 'l' }, 'Fluorochrome ↓  Detector →'), ...chs.map(c => el('th', {}, el('span', { class: 'laser', style: `display:inline-block;margin-right:5px;background:${laser(c)}` }), short(c))));
+  const rows = chs.map((r, i) => el('tr', {}, el('td', { class: 'l' }, label(r)), ...chs.map((c, j) => {
+    if (i === j) return el('td', { class: 'diag' }, '100');
+    const v = M[i][j] * 100;
+    return el('td', { class: Math.abs(v) >= 25 ? 'hot' : '' }, el('input', { type: 'number', step: '0.1', value: +v.toFixed(3), 'aria-label': `Spillover of ${short(r)} into ${short(c)} (%)`,
+      oninput: e => { const x = parseFloat(e.target.value); if (!isFinite(x)) return; M[i][j] = x / 100; e.target.parentNode.className = Math.abs(x) >= 25 ? 'hot' : ''; compChanged(true); } }));
+  })));
+  tbl.replaceChildren(el('thead', {}, head), el('tbody', {}, ...rows));
+  // controls
+  const box = $('#ctrlAssign'); box.replaceChildren();
+  S.samples.forEach(s => {
+    const id = 'ctl-' + s.id, sel = el('select', { id, class: 'ch', onchange: e => { if (e.target.value) S.ctrl[s.id] = e.target.value; else delete S.ctrl[s.id]; renderSamples(); } },
+      el('option', { value: '' }, 'Not a control'), el('option', { value: 'unstained' }, 'Unstained'), ...chs.map(c => el('option', { value: c }, `Single stain: ${label(c)}`)));
+    sel.value = S.ctrl[s.id] || '';
+    box.append(el('div', { class: 'field', style: 'padding-left:0;grid-template-columns:150px 1fr;max-width:460px' }, el('label', { for: id, title: s.name, style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, s.name), sel));
+  });
+  const ps = $('#ctrlPop'); const prev = ps.value;
+  ps.replaceChildren(...dfs().map(({ id, depth }) => el('option', { value: id }, '  '.repeat(depth) + popName(id))));
+  ps.value = dfs().some(d => d.id === prev) ? prev : 'root';
+  // preview selects
+  const fill = (sel, def) => { const v = sel.value; sel.replaceChildren(...chs.map(c => el('option', { value: c }, short(c)))); sel.value = chs.includes(v) ? v : def; };
+  fill($('#pvX'), chs[0]); fill($('#pvY'), chs[1] || chs[0]);
+  renderPreview();
+}
+let pvRaf = 0;
+function compChanged(previewOnly) {
+  markDirty();
+  invalidate({ comp: true });
+  cancelAnimationFrame(pvRaf); pvRaf = requestAnimationFrame(() => { renderPreview(); if (!previewOnly) renderComp(); renderTree(); });
+}
+function renderPreview() {
+  const s = activeSample(); if (!s || !S.spill) return;
+  const x = $('#pvX').value, y = $('#pvY').value; if (!x || !y) return;
+  const w = Math.max(200, Math.min(360, Math.floor(($('#pvRaw').parentNode.clientWidth - 12) / 2)));
+  const spec = { xch: x, ych: y, idx: s.all, small: true, pt: 2 };
+  drawPlot($('#pvRaw'), { ...spec, xT: getTUncomp(s, x), yT: getTUncomp(s, y), title: 'Uncompensated', cacheKey: `pvr|${s.id}|${x}|${y}|${w}|${S.version}` }, w, w);
+  const tmp = S.compOn; S.compOn = true; if (!tmp) { s._comp = null; s._t = {}; }
+  drawPlot($('#pvComp'), { ...spec, xT: getT(s, x), yT: getT(s, y), title: 'Compensated', cacheKey: null }, w, w);
+  if (!tmp) { S.compOn = false; s._comp = null; s._t = {}; }
+}
+function computeFromControls() {
+  const chs = spillChannels(), popId = $('#ctrlPop').value;
+  const subset = (s, ch, idx) => { const src = getUncomp(s, ch), o = new Float32Array(idx.length); for (let i = 0; i < idx.length; i++) o[i] = src[idx[i]]; return o; };
+  const colsFor = s => { const idx = getPop(s, popId); return { n: idx.length, cols: Object.fromEntries(chs.map(c => [c, subset(s, c, idx)])) }; };
+  const ctrls = S.samples.filter(s => S.ctrl[s.id] && S.ctrl[s.id] !== 'unstained').map(s => ({ primary: S.ctrl[s.id], ...colsFor(s), name: s.name }));
+  const un = S.samples.find(s => S.ctrl[s.id] === 'unstained');
+  if (!ctrls.length) { $('#computeMsg').textContent = 'Assign at least one sample as a single-stain control first.'; return; }
+  const small = ctrls.filter(c => c.n < 500);
+  const res = Core.spilloverFromControls(chs, ctrls, un ? colsFor(un) : null);
+  S.spill = { channels: chs, matrix: res.matrix }; S.compOn = true;
+  const missing = chs.filter(c => !ctrls.some(k => k.primary === c));
+  $('#computeMsg').textContent = `Computed from ${ctrls.length} control${ctrls.length > 1 ? 's' : ''}${un ? ' and the unstained sample' : ' without an unstained sample'}, using ${popName(popId)}.` +
+    (missing.length ? ` Rows without a control were left at zero spillover: ${missing.map(short).join(', ')}.` : '') +
+    (small.length ? ` Few events in ${small.map(c => c.name).join(', ')}, so treat those rows with caution.` : '');
+  compChanged(false);
+}
+
+// ------------------------------------------------------------ stats tab ---
+function statValue(kind, col, idx) {
+  if (!idx.length) return NaN;
+  if (kind === 'median') return Core.quantile(col, 0.5, idx);
+  if (kind === 'mean') return Core.mean(col, idx);
+  if (kind === 'gmean') { let s = 0, n = 0; for (let i = 0; i < idx.length; i++) { const v = col[idx[i]]; if (v > 0) { s += Math.log(v); n++; } } return n ? Math.exp(s / n) : NaN; }
+  if (kind === 'cv') { const [a, m, b] = Core.quantiles(col, [0.1587, 0.5, 0.8413], idx); return 100 * 0.5 * (b - a) / m; }
+}
+function statRows() {
+  const kind = $('#statKind').value, chs = S.statChans || [], rows = [];
+  S.samples.forEach(s => {
+    const tot = s.fcs.N;
+    dfs().forEach(({ id, depth }) => {
+      const g = gateById(id), idx = getPop(s, id), pn = g ? getPop(s, g.parent).length : tot;
+      rows.push({ sample: s.name, pop: popName(id), depth, path: dfs().length, parent: g ? popName(g.parent) : '', count: idx.length, pctParent: pn ? idx.length / pn * 100 : NaN, pctTotal: tot ? idx.length / tot * 100 : NaN,
+        vals: chs.map(c => statValue(kind, getRaw(s, c), idx)) });
+    });
+  });
+  return rows;
+}
+function renderStats() {
+  if (!S.samples.length) return;
+  if (!S.statChans) S.statChans = spillChannels().slice(0, 6);
+  $('#statChans').replaceChildren(...S.channels.map(c => el('label', {}, el('input', { type: 'checkbox', checked: S.statChans.includes(c), onchange: e => { S.statChans = S.channels.filter(x => x === c ? e.target.checked : S.statChans.includes(x)); renderStats(); } }), el('span', { class: 'laser', style: `background:${laser(c)}` }), short(c))));
+  const kind = $('#statKind').selectedOptions[0].textContent;
+  const rows = statRows(), tbl = $('#statTable');
+  const head = el('tr', {}, el('th', { class: 'l' }, 'Sample'), el('th', { class: 'l' }, 'Population'), el('th', {}, 'Events'), el('th', {}, '% of parent'), el('th', {}, '% of all'), ...S.statChans.map(c => el('th', {}, `${short(c)} ${kind.toLowerCase()}`)));
+  let last = null;
+  const body = rows.map(r => { const tr = el('tr', { class: r.sample !== last && last !== null ? 'grp' : '' },
+    el('td', { class: 'l' }, r.sample !== last ? r.sample : ''), el('td', { class: 'l', style: `padding-left:${10 + r.depth * 14}px` }, r.pop), el('td', {}, fmtInt(r.count)),
+    el('td', {}, r.parent ? fmtPct(r.pctParent) : ''), el('td', {}, fmtPct(r.pctTotal)), ...r.vals.map(v => el('td', {}, fmtStat(v)))); last = r.sample; return tr; });
+  tbl.replaceChildren(el('thead', {}, head), el('tbody', {}, ...body));
+}
+function statsCsv() {
+  const kind = $('#statKind').value, rows = statRows();
+  const q = v => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const lines = [['sample', 'population', 'parent', 'events', 'pct_of_parent', 'pct_of_all', ...S.statChans.map(c => `${short(c)}_${kind}`)].map(q).join(',')];
+  rows.forEach(r => lines.push([r.sample, r.pop, r.parent, r.count, isFinite(r.pctParent) && r.parent ? r.pctParent.toFixed(4) : '', r.pctTotal.toFixed(4), ...r.vals.map(v => isFinite(v) ? +v.toPrecision(6) : '')].map(q).join(',')));
+  download(URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), 'population_statistics.csv');
+}
+
+// ------------------------------------------------------------ templates ---
+function download(url, name) { const a = el('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove(); }
+function saveTemplate() {
+  if (!S.samples.length) return toast('Add samples and draw gates before saving a template.', true);
+  const tpl = { format: 'flow-workbench-template', version: 1, saved: new Date().toISOString(), channels: S.channels, transforms: S.transforms, compensation: { apply: S.compOn, spillover: S.spill }, gates: S.gates };
+  download(URL.createObjectURL(new Blob([JSON.stringify(tpl, null, 1)], { type: 'application/json' })), 'gating_template.json');
+  toast('Template saved.');
+}
+async function openTemplate(file) {
+  if (!S.samples.length) return toast('Add FCS files first, then open a template to apply it to them.', true);
+  let tpl; try { tpl = JSON.parse(await file.text()); } catch (e) { return toast('That file is not valid JSON.', true); }
+  if (tpl.format !== 'flow-workbench-template') return toast('That JSON file is not a Flow Workbench template.', true);
+  const used = new Set(); (tpl.gates || []).forEach(g => { used.add(g.x); if (g.y) used.add(g.y); });
+  const missing = [...used].filter(c => !S.channels.includes(c));
+  if (missing.length) return toast(`The template uses channels these files lack: ${missing.join(', ')}.`, true);
+  Object.entries(tpl.transforms || {}).forEach(([c, cfg]) => { if (S.channels.includes(c)) S.transforms[c] = cfg; });
+  S.tfns = {};
+  if (tpl.compensation && tpl.compensation.spillover && tpl.compensation.spillover.channels.every(c => S.channels.includes(c))) { S.spill = tpl.compensation.spillover; S.compOn = !!tpl.compensation.apply; }
+  markDirty();
+  S.gates = tpl.gates || []; S.nextId = 1 + Math.max(0, ...S.gates.map(g => parseInt(String(g.id).replace(/\D/g, ''), 10) || 0));
+  S.view.pop = 'root'; S.view.sel = null;
+  invalidate({ comp: true }); renderAll(); toast(`Applied template with ${S.gates.length} gate${S.gates.length === 1 ? '' : 's'}.`);
+}
+
+// ------------------------------------------------------------ shell ---
+function switchTab(t) {
+  S.tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  renderAll();
+}
+function renderAll() {
+  const has = S.samples.length > 0;
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(b => { b.disabled = !has; });
+  renderSamples();
+  if (!has) { $('#pane-empty').classList.add('on'); $('#popTree').replaceChildren(); return; }
+  $('#pane-' + S.tab).classList.add('on');
+  renderTree();
+  if (S.tab === 'gate') renderGateTab();
+  else if (S.tab === 'scheme') renderScheme();
+  else if (S.tab === 'comp') renderComp();
+  else if (S.tab === 'stats') renderStats();
+  else if (S.tab === 'export') renderExport();
+  renderProjName();
+}
+function refreshAll() { renderAll(); }
+
+// ------------------------------------------------------------ SVG recorder ---
+/* Implements the subset of CanvasRenderingContext2D used by the plotting code and records it as SVG,
+   so the same drawing routines produce editable vector figures (text stays text, gates stay paths). */
+class SvgCtx {
+  constructor(w, h) {
+    this.w = w; this.h = h; this.out = []; this.defs = []; this.stack = []; this.groups = 0; this.nClip = 0;
+    this.m = [1, 0, 0, 1, 0, 0]; this.path = ''; this.dash = [];
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.font = '10px sans-serif';
+    this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.imageSmoothingEnabled = true;
+    this._mc = document.createElement('canvas').getContext('2d');
+  }
+  static n(v) { return +(+v).toFixed(2); }
+  static esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  static paint(c, kind) {
+    c = String(c).trim();
+    const m = c.match(/^rgba?\(([^)]+)\)$/i);
+    if (m) {
+      const p = m[1].split(',').map(s => s.trim());
+      const a = p.length > 3 ? parseFloat(p[3]) : 1;
+      return `${kind}="rgb(${p.slice(0, 3).join(',')})"${a < 1 ? ` ${kind}-opacity="${+a.toFixed(3)}"` : ''}`;
+    }
+    return `${kind}="${SvgCtx.esc(c)}"`;
+  }
+  tf() { const m = this.m; return (m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1 && m[4] === 0 && m[5] === 0) ? '' : ` transform="matrix(${m.map(SvgCtx.n).join(' ')})"`; }
+  save() { this.stack.push({ m: this.m.slice(), fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineWidth: this.lineWidth, font: this.font, textAlign: this.textAlign, textBaseline: this.textBaseline, dash: this.dash.slice(), groups: this.groups }); this.groups = 0; }
+  restore() { for (let i = 0; i < this.groups; i++) this.out.push('</g>'); const s = this.stack.pop(); if (s) Object.assign(this, s); }
+  transform(a, b, c, d, e, f) { const m = this.m; this.m = [m[0] * a + m[2] * b, m[1] * a + m[3] * b, m[0] * c + m[2] * d, m[1] * c + m[3] * d, m[0] * e + m[2] * f + m[4], m[1] * e + m[3] * f + m[5]]; }
+  translate(x, y) { this.transform(1, 0, 0, 1, x, y); }
+  scale(x, y) { this.transform(x, 0, 0, y, 0, 0); }
+  rotate(a) { const c = Math.cos(a), s = Math.sin(a); this.transform(c, s, -s, c, 0, 0); }
+  setTransform(a, b, c, d, e, f) { this.m = [a, b, c, d, e, f]; }
+  setLineDash(d) { this.dash = d.slice(); }
+  beginPath() { this.path = ''; }
+  moveTo(x, y) { this.path += `M${SvgCtx.n(x)} ${SvgCtx.n(y)}`; }
+  lineTo(x, y) { this.path += (this.path ? 'L' : 'M') + `${SvgCtx.n(x)} ${SvgCtx.n(y)}`; }
+  closePath() { this.path += 'Z'; }
+  rect(x, y, w, h) { const n = SvgCtx.n; this.path += `M${n(x)} ${n(y)}h${n(w)}v${n(h)}h${n(-w)}Z`; }
+  arc(cx, cy, r, a0, a1, ccw = false) {
+    const n = SvgCtx.n, T = 2 * Math.PI, sx = cx + r * Math.cos(a0), sy = cy + r * Math.sin(a0);
+    this.path += (this.path ? 'L' : 'M') + `${n(sx)} ${n(sy)}`;
+    let sweep = ccw ? a0 - a1 : a1 - a0; const f = ccw ? 0 : 1;
+    if (sweep >= T - 1e-9) {
+      const mx = cx - r * Math.cos(a0), my = cy - r * Math.sin(a0);
+      this.path += `A${n(r)} ${n(r)} 0 1 ${f} ${n(mx)} ${n(my)}A${n(r)} ${n(r)} 0 1 ${f} ${n(sx)} ${n(sy)}`; return;
+    }
+    sweep = ((sweep % T) + T) % T;
+    this.path += `A${n(r)} ${n(r)} 0 ${sweep > Math.PI ? 1 : 0} ${f} ${n(cx + r * Math.cos(a1))} ${n(cy + r * Math.sin(a1))}`;
+  }
+  strokeAttrs() { return `fill="none" ${SvgCtx.paint(this.strokeStyle, 'stroke')} stroke-width="${SvgCtx.n(this.lineWidth)}"${this.dash.length ? ` stroke-dasharray="${this.dash.join(' ')}"` : ''}`; }
+  fill() { if (this.path) this.out.push(`<path d="${this.path}" ${SvgCtx.paint(this.fillStyle, 'fill')}${this.tf()}/>`); }
+  stroke() { if (this.path) this.out.push(`<path d="${this.path}" ${this.strokeAttrs()} stroke-linejoin="round"${this.tf()}/>`); }
+  fillRect(x, y, w, h) { const n = SvgCtx.n; this.out.push(`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" ${SvgCtx.paint(this.fillStyle, 'fill')}${this.tf()}/>`); }
+  strokeRect(x, y, w, h) { const n = SvgCtx.n; this.out.push(`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" ${this.strokeAttrs()}${this.tf()}/>`); }
+  clip() {
+    const id = 'clip' + (++this.nClip);
+    this.defs.push(`<clipPath id="${id}"><path d="${this.path}"${this.tf()}/></clipPath>`);
+    this.out.push(`<g clip-path="url(#${id})">`); this.groups++;
+  }
+  parseFont() {
+    const m = this.font.match(/^\s*(?:(\d{3}|bold|normal)\s+)?([\d.]+)px\s+(.+)$/);
+    return m ? { weight: m[1] || '400', size: parseFloat(m[2]), family: m[3] } : { weight: '400', size: 10, family: 'sans-serif' };
+  }
+  measureText(t) { this._mc.font = this.font; return this._mc.measureText(t); }
+  fillText(t, x, y) {
+    const f = this.parseFont(), n = SvgCtx.n;
+    const anchor = { center: 'middle', right: 'end', end: 'end' }[this.textAlign] || 'start';
+    const dy = this.textBaseline === 'top' || this.textBaseline === 'hanging' ? f.size * 0.8 : this.textBaseline === 'middle' ? f.size * 0.35 : this.textBaseline === 'bottom' ? -f.size * 0.2 : 0;
+    this.out.push(`<text x="${n(x)}" y="${n(y + dy)}" font-family="${SvgCtx.esc(f.family)}" font-size="${n(f.size)}"${f.weight !== '400' && f.weight !== 'normal' ? ` font-weight="${f.weight}"` : ''} text-anchor="${anchor}" ${SvgCtx.paint(this.fillStyle, 'fill')}${this.tf()}>${SvgCtx.esc(t)}</text>`);
+  }
+  drawImage(img, x, y, w, h) {
+    const n = SvgCtx.n, url = img.toDataURL('image/png');
+    this.out.push(`<image x="${n(x)}" y="${n(y)}" width="${n(w ?? img.width)}" height="${n(h ?? img.height)}" preserveAspectRatio="none"${this.imageSmoothingEnabled ? '' : ' style="image-rendering:pixelated;image-rendering:crisp-edges"'} href="${url}" xlink:href="${url}"${this.tf()}/>`);
+  }
+  toString() {
+    while (this.stack.length) this.restore();
+    for (let i = 0; i < this.groups; i++) this.out.push('</g>'); this.groups = 0;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${this.w}" height="${this.h}" viewBox="0 0 ${this.w} ${this.h}">\n<defs>${this.defs.join('')}</defs>\n${this.out.join('\n')}\n</svg>`;
+  }
+}
+
+// ------------------------------------------------------------ projects ---
+/* A project file bundles the original FCS bytes with the whole analysis (gates, transforms,
+   compensation, sample names, control assignments, view and export settings).
+   Layout: gzip( "FWPROJ01" | uint32 header length | header JSON | FCS file bytes ... ) */
+const PROJ_MAGIC = 'FWPROJ01';
+let projHandle = null, pickerUsable = true;
+S.projectName = null; S.dirty = false;
+
+function markDirty() { if (S.samples.length && !S.dirty) { S.dirty = true; renderProjName(); } }
+function markSaved(name) { S.dirty = false; if (name) S.projectName = name; renderProjName(); }
+function renderProjName() {
+  const e = $('#projName'); if (!e) return;
+  if (!S.samples.length) { e.textContent = ''; return; }
+  e.replaceChildren(...[el('span', {}, S.projectName ? S.projectName.replace(/\.fwproj$/i, '') : 'Untitled project'),
+    S.dirty ? el('span', { class: 'unsaved', title: 'There are changes that are not in a saved project file' }, 'Unsaved') : null].filter(Boolean));
+  document.title = (S.projectName ? S.projectName.replace(/\.fwproj$/i, '') + ' - ' : '') + 'Flow Workbench';
+}
+
+function resetState() {
+  Object.assign(S, { samples: [], active: -1, channels: [], stains: {}, ranges: {}, transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false,
+    gates: [], nextId: 1, ctrl: {}, overlays: new Set(), statChans: null, projectName: null, dirty: false });
+  S.view = { x: null, y: null, pop: 'root', tool: 'pointer', sel: null, pt: 2 };
+  densityCache.clear(); S.version++; projHandle = null;
+}
+
+async function gzip(blob) {
+  if (!('CompressionStream' in window)) return blob;
+  return new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+}
+async function gunzip(bytes) {
+  if (!('DecompressionStream' in window)) throw new Error('This browser cannot open compressed project files. Update Safari or Chrome and try again.');
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+
+async function buildProject() {
+  // Prefer the bytes the file arrived with, so keywords (cytometer, dates, $SPILLOVER) survive untouched.
+  const blobs = S.samples.map(s => s.bytes || (s.bytes = Core.writeFCS(s.fcs)));
+  const header = {
+    format: 'flow-workbench-project', version: 1, saved: new Date().toISOString(),
+    samples: S.samples.map((s, i) => ({ name: s.name, fileName: s.fcs.fileName, control: S.ctrl[s.id] || null, bytes: blobs[i].length })),
+    channels: S.channels, transforms: S.transforms,
+    compensation: { apply: S.compOn, spillover: S.spill, fromFile: S.fileSpill },
+    gates: S.gates, nextId: S.nextId,
+    view: { x: S.view.x, y: S.view.y, pop: S.view.pop, pt: S.view.pt }, active: S.active, tab: S.tab,
+    overlays: [...S.overlays].map(id => S.samples.findIndex(s => s.id === id)).filter(i => i >= 0),
+    statChans: S.statChans, statKind: $('#statKind').value, exportSettings: exportSettingsForSave()
+  };
+  const hb = new TextEncoder().encode(JSON.stringify(header));
+  const pre = new Uint8Array(12); pre.set(new TextEncoder().encode(PROJ_MAGIC)); new DataView(pre.buffer).setUint32(8, hb.length, true);
+  return gzip(new Blob([pre, hb, ...blobs], { type: 'application/octet-stream' }));
+}
+
+async function saveProject(saveAs) {
+  if (!S.samples.length) return toast('Add samples before saving a project.', true);
+  let blob;
+  try { blob = await buildProject(); } catch (e) { return toast('The project could not be saved: ' + e.message, true); }
+  const mb = (blob.size / 1048576).toFixed(blob.size > 1048576 * 10 ? 0 : 1);
+  const suggested = (S.projectName || (S.samples[0].name + ' analysis')).replace(/\.fwproj$/i, '').replace(/[\\/:*?"<>|]+/g, '_') + '.fwproj';
+  if (window.showSaveFilePicker && pickerUsable) {
+    const t0 = performance.now();
+    try {
+      if (!projHandle || saveAs) projHandle = await window.showSaveFilePicker({ suggestedName: suggested, types: [{ description: 'Flow Workbench project', accept: { 'application/octet-stream': ['.fwproj'] } }] });
+      const w = await projHandle.createWritable(); await w.write(blob); await w.close();
+      markSaved(projHandle.name); toast(`Saved ${projHandle.name} (${mb} MB).`); return;
+    } catch (e) {
+      projHandle = null;
+      // A dialog a person saw and dismissed takes time; an instant abort means this context
+      // cannot show one (sandboxed frame, some file:// setups), so fall through to a download.
+      if (e.name === 'AbortError') { if (performance.now() - t0 > 250) return; pickerUsable = false; }
+    }
+  }
+  download(URL.createObjectURL(blob), suggested);
+  markSaved(suggested); toast(`Project downloaded as ${suggested} (${mb} MB). Open it with File > Open project next time.`);
+}
+
+async function pickProject() {
+  if (S.dirty && !confirm('Open another project? Changes that are not in a saved project file will be lost.')) return;
+  if (window.showOpenFilePicker && pickerUsable) {
+    const t0 = performance.now();
+    try {
+      const [h] = await window.showOpenFilePicker({ types: [{ description: 'Flow Workbench project', accept: { 'application/octet-stream': ['.fwproj'] } }] });
+      await openProject(await h.getFile(), h); return;
+    } catch (e) { if (e.name === 'AbortError' && performance.now() - t0 > 250) return; pickerUsable = false; }
+  }
+  $('#projIn').click();
+}
+
+async function openProject(file, handle = null) {
+  let bytes;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) bytes = await gunzip(bytes);
+    if (new TextDecoder().decode(bytes.subarray(0, 8)) !== PROJ_MAGIC) throw new Error(`${file.name} is not a Flow Workbench project file.`);
+  } catch (e) { return toast(e.message, true); }
+  const hl = new DataView(bytes.buffer, bytes.byteOffset).getUint32(8, true);
+  const P = JSON.parse(new TextDecoder().decode(bytes.subarray(12, 12 + hl)));
+  if (P.format !== 'flow-workbench-project') return toast(`${file.name} is not a Flow Workbench project file.`, true);
+  resetState();
+  const realToast = toast, problems = []; toast = (m, err) => err ? problems.push(m) : null;
+  let off = 12 + hl;
+  for (const h of P.samples) {
+    const chunk = bytes.slice(off, off + h.bytes); off += h.bytes;
+    try {
+      if (addSample(Core.parseFCS(chunk.buffer, h.fileName), chunk)) {
+        const s = S.samples[S.samples.length - 1]; s.name = h.name;
+        if (h.control) S.ctrl[s.id] = h.control; else delete S.ctrl[s.id];
+      }
+    } catch (e) { problems.push(`${h.name}: ${e.message}`); }
+  }
+  toast = realToast;
+  if (!S.samples.length) return toast('No samples could be read from this project. ' + problems.join(' '), true);
+  Object.entries(P.transforms || {}).forEach(([c, cfg]) => { if (S.channels.includes(c)) S.transforms[c] = cfg; });
+  S.tfns = {};
+  const comp = P.compensation || {};
+  S.spill = comp.spillover || null; S.fileSpill = comp.fromFile || S.fileSpill; S.compOn = !!comp.apply && !!S.spill;
+  S.gates = P.gates || []; S.nextId = P.nextId || (S.gates.length + 1);
+  const v = P.view || {};
+  if (S.channels.includes(v.x)) S.view.x = v.x;
+  if (v.y === '' || S.channels.includes(v.y)) S.view.y = v.y;
+  S.view.pop = v.pop === 'root' || gateById(v.pop) ? v.pop : 'root'; S.view.pt = v.pt || 2;
+  S.active = Math.min(Math.max(0, P.active || 0), S.samples.length - 1);
+  (P.overlays || []).forEach(i => S.samples[i] && S.overlays.add(S.samples[i].id));
+  S.statChans = P.statChans ? P.statChans.filter(c => S.channels.includes(c)) : null;
+  if (P.statKind) $('#statKind').value = P.statKind;
+  restoreExportSettings(P.exportSettings);
+  invalidate({ comp: true });
+  projHandle = handle; S.tab = ['gate', 'scheme', 'comp', 'stats', 'export'].includes(P.tab) ? P.tab : 'gate';
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === S.tab));
+  markSaved(file.name);
+  renderAll(); $('#ptSize').value = S.view.pt;
+  toast(problems.length ? `Opened ${file.name}, with problems: ${problems.join(' ')}` : `Opened ${file.name}: ${S.samples.length} samples, ${S.gates.length} gates.`, problems.length > 0);
+}
+
+// file menu
+function toggleMenu(open) {
+  const m = $('#fileMenu'), b = $('#btnFile');
+  const on = open ?? m.classList.contains('hidden');
+  m.classList.toggle('hidden', !on); b.setAttribute('aria-expanded', on);
+  if (on) { const first = m.querySelector('button:not(:disabled)'); first && first.focus(); }
+}
+
+// ------------------------------------------------------------ export tab ---
+const LAYOUTS = [
+  { id: 'current', name: 'Current plot', desc: 'The plot on the Gate tab, with its histogram overlays.' },
+  { id: 'strategy', name: 'Gating strategy', desc: 'Every gating step for one sample, wrapped into a grid.' },
+  { id: 'cols', name: 'Samples in columns', desc: 'One column per sample and one row per plot, for comparing conditions.' },
+  { id: 'rows', name: 'Samples in rows', desc: 'One row per sample showing each gating step across the page.' },
+  { id: 'overlay', name: 'Histogram overlay', desc: 'One marker in one population, all chosen samples on the same axes.' },
+  { id: 'ridge', name: 'Stacked histograms', desc: 'One marker in one population, samples offset vertically with gate frequencies.' },
+  { id: 'free', name: 'Free layout', desc: 'Place plots anywhere on a blank canvas and annotate them with text and arrows.' }
+];
+const RIDGE_COLORS = ['#0A73B8', '#D8342C', '#2E8B57', '#7A3FD1', '#E08A00', '#C2185B', '#14A6C8', '#6D7A2A'];
+const E = { layout: 'strategy', sampleId: null, plots: null, samples: null, pop: 'root', pops: null, compare: 'samples', ch: null, gate: '', cols: 3, size: 300, pt: 2,
+  labels: true, pct: true, titles: true, heading: '', fmt: 'png', scale: 2, transparent: false, fontScale: 1 };
+
+function exportSettingsForSave() {
+  const { plots, samples, sampleId, free, pops, ...rest } = E;
+  const freeOut = free ? { ...free, items: free.items.map(i => i.type === 'panel' ? { ...i, sampleId: undefined, sampleIdx: S.samples.findIndex(s => s.id === i.sampleId) } : { ...i }) } : null;
+  return { ...rest, free: freeOut, pops: pops ? [...pops] : null, plots: plots ? [...plots] : null, sampleIdx: S.samples.findIndex(s => s.id === sampleId), samplesIdx: samples ? [...samples].map(id => S.samples.findIndex(s => s.id === id)).filter(i => i >= 0) : null };
+}
+function restoreExportSettings(o) {
+  if (!o) return;
+  const { plots, sampleIdx, samplesIdx, free, pops, ...rest } = o; Object.assign(E, rest);
+  E.pops = pops ? new Set(pops) : null;
+  E.free = free ? { ...free, items: (free.items || []).map(i => { if (i.type !== 'panel') return { ...i }; const { sampleIdx: si, ...r } = i; const s = S.samples[si] || S.samples[0]; return { ...r, sampleId: s && s.id }; }) } : null;
+  E.plots = plots ? new Set(plots) : null;
+  E.sampleId = S.samples[sampleIdx] ? S.samples[sampleIdx].id : null;
+  E.samples = samplesIdx ? new Set(samplesIdx.map(i => S.samples[i] && S.samples[i].id).filter(Boolean)) : null;
+}
+
+function plotGroups() {
+  const groups = [];
+  dfs().forEach(({ id }) => {
+    const m = new Map();
+    children(id).forEach(g => { const k = `${id}|${g.x}|${g.y || ''}`; if (!m.has(k)) m.set(k, { key: k, parent: id, x: g.x, y: g.y || null, gates: [] }); m.get(k).gates.push(g); });
+    m.forEach(v => groups.push(v));
+  });
+  return groups;
+}
+const groupLabel = gr => `${popName(gr.parent)}: ${short(gr.x)}${gr.y ? ' vs ' + short(gr.y) : ' histogram'}`;
+const expSamples = () => S.samples.filter(s => E.samples ? E.samples.has(s.id) : !S.ctrl[s.id]);
+const expGroups = () => plotGroups().filter(g => !E.plots || E.plots.has(g.key));
+const expSample = () => S.samples.find(s => s.id === E.sampleId) || activeSample();
+
+function groupSpec(s, gr, P) {
+  const pop = getPop(s, gr.parent), pn = pop.length;
+  return {
+    xch: gr.x, ych: gr.y, xT: getT(s, gr.x), yT: gr.y ? getT(s, gr.y) : null, idx: pop, small: P < 340, pt: E.pt, fontScale: E.fontScale,
+    gates: gr.gates.map(g => ({ gate: g, pct: pn ? getPop(s, g.id).length / pn * 100 : 0 })),
+    labels: E.labels, pct: E.pct, transparent: E.transparent,
+    title: E.titles ? popName(gr.parent) : '', subtitle: E.titles ? fmtInt(pn) : '',
+    cacheKey: `x|${s.id}|${gr.parent}|${gr.x}|${gr.y}|${P}|${E.pt}|${S.version}`
+  };
+}
+
+/* Returns {W, H, draw(ctx)} describing the whole figure in CSS pixels. */
+function buildFigure() {
+  const P = E.size, gap = 14, pad = 22, fs = 13 * E.fontScale;
+  const headH = E.heading ? Math.round(30 * E.fontScale) : 0;
+  const text = (ctx, t, x, y, o = {}) => { ctx.font = `${o.weight || 600} ${o.size || fs}px ${FONT}`; ctx.fillStyle = o.color || '#16212A'; ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic'; ctx.fillText(t, x, y); };
+  const bg = (ctx, W, H) => { if (!E.transparent) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); } if (E.heading) text(ctx, E.heading, pad, pad + 16 * E.fontScale, { size: 17 * E.fontScale }); };
+  const panel = (ctx, x, y, spec, w, h) => { ctx.save(); ctx.translate(x, y); paintPlot(ctx, spec, w, h); ctx.restore(); };
+  const empty = msg => ({ W: 520, H: 140, empty: msg, draw: ctx => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 520, 140); text(ctx, msg, 260, 74, { align: 'center', weight: 400, color: '#5A6670' }); } });
+
+  if (E.layout === 'free') return freeFigure();
+
+  if (E.layout === 'current') {
+    const s = activeSample(), v = S.view, pop = getPop(s, v.pop), pn = pop.length;
+    const overlays = !v.y ? [...S.overlays].map((id, k) => { const o = S.samples.find(x => x.id === id); return o && o !== s ? { xT: getT(o, v.x), idx: getPop(o, v.pop), color: OVERLAY_COLORS[k % OVERLAY_COLORS.length], name: o.name } : null; }).filter(Boolean) : [];
+    const spec = { xch: v.x, ych: v.y || null, xT: getT(s, v.x), yT: v.y ? getT(s, v.y) : null, idx: pop, overlays, pt: E.pt, small: P < 340, fontScale: E.fontScale,
+      gates: plotGates().map(g => ({ gate: g, pct: pn ? getPop(s, g.id).length / pn * 100 : 0 })), labels: E.labels, pct: E.pct, transparent: E.transparent,
+      title: E.titles ? popName(v.pop) : '', subtitle: E.titles ? `${s.name}, ${fmtInt(pn)} events` : '', cacheKey: `xc|${s.id}|${v.pop}|${v.x}|${v.y}|${P}|${E.pt}|${S.version}` };
+    const legW = overlays.length ? 190 : 0, W = pad * 2 + P + legW, H = pad * 2 + headH + P;
+    return { W, H, draw: ctx => {
+      bg(ctx, W, H); panel(ctx, pad, pad + headH, spec, P, P);
+      if (legW) [{ name: s.name, color: '#16212A' }, ...overlays].forEach((o, i) => legendRow(ctx, pad + P + 14, pad + headH + 40 + i * 20, o.color, o.name, fs));
+    } };
+  }
+
+  if (E.layout === 'strategy') {
+    const s = expSample(), gs = expGroups();
+    if (!gs.length) return empty('Draw some gates first. Each gating step becomes one panel here.');
+    const cols = Math.max(1, Math.min(E.cols, gs.length)), rows = Math.ceil(gs.length / cols), subH = E.titles ? Math.round(24 * E.fontScale) : 0;
+    const W = pad * 2 + cols * P + (cols - 1) * gap, H = pad * 2 + headH + subH + rows * P + (rows - 1) * gap;
+    return { W, H, draw: ctx => {
+      bg(ctx, W, H);
+      if (E.titles) text(ctx, s.name, pad, pad + headH + 14 * E.fontScale, { size: 14 * E.fontScale });
+      gs.forEach((gr, i) => panel(ctx, pad + (i % cols) * (P + gap), pad + headH + subH + Math.floor(i / cols) * (P + gap), groupSpec(s, gr, P), P, P));
+    } };
+  }
+
+  if (E.layout === 'cols' || E.layout === 'rows') {
+    const ss = expSamples(), gs = expGroups();
+    if (!gs.length) return empty('Draw some gates first, then choose which plots to include.');
+    if (!ss.length) return empty('Choose at least one sample.');
+    const byCol = E.layout === 'cols', nR = byCol ? gs.length : ss.length, nC = byCol ? ss.length : gs.length;
+    const colH = byCol ? Math.round(26 * E.fontScale) : 0, rowW = byCol ? 0 : Math.round(28 * E.fontScale);
+    const W = pad * 2 + rowW + nC * P + (nC - 1) * gap, H = pad * 2 + headH + colH + nR * P + (nR - 1) * gap;
+    return { W, H, draw: ctx => {
+      bg(ctx, W, H);
+      const x0 = pad + rowW, y0 = pad + headH + colH;
+      if (byCol) ss.forEach((s, c) => text(ctx, s.name, x0 + c * (P + gap) + P / 2, pad + headH + 16 * E.fontScale, { align: 'center', size: 13.5 * E.fontScale }));
+      else ss.forEach((s, r) => { ctx.save(); ctx.translate(pad + 10 * E.fontScale, y0 + r * (P + gap) + P / 2); ctx.rotate(-Math.PI / 2); text(ctx, s.name, 0, 0, { align: 'center', base: 'middle', size: 13.5 * E.fontScale }); ctx.restore(); });
+      for (let r = 0; r < nR; r++) for (let c = 0; c < nC; c++) {
+        const s = byCol ? ss[c] : ss[r], gr = byCol ? gs[r] : gs[c];
+        panel(ctx, x0 + c * (P + gap), y0 + r * (P + gap), groupSpec(s, gr, P), P, P);
+      }
+    } };
+  }
+
+  // one marker; rows are either samples or populations
+  const ch = E.ch && S.channels.includes(E.ch) ? E.ch : S.channels.find(isFluor) || S.channels[0];
+  const rows = compareRows();
+  if (!rows.length) return empty(E.compare === 'populations' ? 'Choose at least one population.' : 'Choose at least one sample.');
+  const pop = E.pop === 'root' || gateById(E.pop) ? E.pop : 'root';
+  const heading = E.compare === 'populations' ? expSample().name : popName(pop);
+  if (E.layout === 'overlay') {
+    const curves = rows.map((r, i) => ({ xT: getT(r.s, ch), idx: r.idx, color: RIDGE_COLORS[i % RIDGE_COLORS.length], name: r.name }));
+    ctx0.font = `400 ${fs * 0.92}px ${FONT}`;
+    const legW = Math.min(340, Math.max(...curves.map(c => ctx0.measureText(`${c.name} (${fmtInt(c.idx.length)})`).width)) + 54);
+    const pw = Math.round(P * 1.3), W = pad * 2 + pw + legW, H = pad * 2 + headH + P;
+    const spec = { xch: ch, ych: null, curves, idx: curves[0].idx, xT: curves[0].xT, small: P < 340, fontScale: E.fontScale, transparent: E.transparent,
+      gates: E.compare === 'populations' ? [] : children(pop).filter(g => g.type === 'interval' && g.x === ch).map(g => ({ gate: g, pct: null })),
+      labels: E.labels, pct: false, title: E.titles ? heading : '' };
+    return { W, H, draw: ctx => {
+      bg(ctx, W, H); panel(ctx, pad, pad + headH, spec, pw, P);
+      curves.forEach((c, i) => legendRow(ctx, pad + pw + 14, pad + headH + 40 + i * 20, c.color, `${c.name} (${fmtInt(c.idx.length)})`, fs));
+    } };
+  }
+  // ridge
+  const gate = E.compare === 'samples' && gateById(E.gate) && gateById(E.gate).parent === pop && gateById(E.gate).x === ch ? gateById(E.gate) : null;
+  return ridgeFigure(rows, heading, ch, gate, { P, pad, headH, fs, bg, text });
+}
+
+/* The two one-marker layouts compare either several samples in one population, or several
+   populations within one sample. Both resolve to the same list of labelled row definitions. */
+function compareRows() {
+  if (E.compare === 'populations') {
+    const s = expSample(), ids = dfs().map(d => d.id).filter(id => E.pops ? E.pops.has(id) : gateById(id));
+    return ids.map(id => ({ s, pop: id, name: popName(id), idx: getPop(s, id) }));
+  }
+  const pop = E.pop === 'root' || gateById(E.pop) ? E.pop : 'root';
+  return expSamples().map(s => ({ s, pop, name: s.name, idx: getPop(s, pop) }));
+}
+
+function legendRow(ctx, x, y, color, name, fs) {
+  ctx.fillStyle = color; ctx.fillRect(x, y - 2, 18, 3);
+  ctx.font = `400 ${fs * 0.92}px ${FONT}`; ctx.fillStyle = '#16212A'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(name, x + 26, y);
+}
+
+function ridgeFigure(rows, heading, ch, gate, { P, pad, headH, fs, bg, text }) {
+  const cfg = S.transforms[ch], xr = cfg.range, rowH = Math.max(28, Math.round(P / 5.5)), amp = rowH * 1.7;
+  ctx0.font = `600 ${fs * 0.95}px ${FONT}`;
+  const nameW = Math.min(230, Math.max(...rows.map(r => ctx0.measureText(r.name).width)) + 16);
+  const pctW = gate ? 76 : 82, pw = Math.round(P * 1.35), titleH = E.titles ? 28 : 0;
+  const W = pad * 2 + nameW + pw + pctW, plotTop = pad + headH + titleH + amp - rowH, H = plotTop + rows.length * rowH + 52 + pad;
+  const g = { ml: pad + nameW, mt: plotTop - amp + rowH, w: pw, h: 0 };
+  g.h = plotTop + rows.length * rowH - g.mt; g.tx = t => g.ml + (t - xr[0]) / (xr[1] - xr[0]) * pw;
+  return { W, H, draw: ctx => {
+    bg(ctx, W, H);
+    if (E.titles) text(ctx, `${heading}: ${label(ch)}`, g.ml, pad + headH + 16 * E.fontScale, { size: 14 * E.fontScale });
+    if (gate) {
+      const fx = tfn(ch), a = g.tx(fx.f(gate.pts[0][0])), b = g.tx(fx.f(gate.pts[1][0])), lo = Math.max(g.ml, Math.min(a, b)), hi = Math.min(g.ml + pw, Math.max(a, b));
+      ctx.fillStyle = 'rgba(10,115,184,.07)'; ctx.fillRect(lo, g.mt, hi - lo, g.h);
+      ctx.strokeStyle = '#0A73B8'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+      [lo, hi].forEach(x => { ctx.beginPath(); ctx.moveTo(x, g.mt); ctx.lineTo(x, g.mt + g.h); ctx.stroke(); });
+      ctx.setLineDash([]);
+      text(ctx, gate.name, W - pad, g.mt - 4, { align: 'right', size: fs * 0.9, color: '#0A73B8' });
+    }
+    rows.forEach((r, i) => {
+      const base = plotTop + (i + 1) * rowH, idx = r.idx, h = histogram(getT(r.s, ch), idx, xr), mx = Math.max(...h) || 1, n = h.length, col = RIDGE_COLORS[i % RIDGE_COLORS.length];
+      ctx.beginPath(); ctx.moveTo(g.tx(xr[0]), base);
+      for (let k = 0; k < n; k++) ctx.lineTo(g.tx(xr[0] + (k + 0.5) / n * (xr[1] - xr[0])), base - h[k] / mx * amp);
+      ctx.lineTo(g.tx(xr[1]), base); ctx.closePath();
+      ctx.fillStyle = hexA(col, 0.55); ctx.fill(); ctx.strokeStyle = '#16212A'; ctx.lineWidth = 1; ctx.stroke();
+      text(ctx, r.name, g.ml - 10, base - 4, { align: 'right', size: fs * 0.95 });
+      const stat = gate ? (idx.length ? fmtPct(getPop(r.s, gate.id).length / idx.length * 100) : '\u2013') : fmtInt(idx.length);
+      text(ctx, stat, W - pad, base - 4, { align: 'right', weight: 400, size: fs * 0.95 });
+    });
+    ctx.fillStyle = '#C9D1CF'; ctx.fillRect(g.ml, g.mt + g.h, pw, 1);
+    drawAxis(ctx, g, cfg, 'x', 11.5 * E.fontScale);
+    ctx.font = `600 ${12.5 * E.fontScale}px ${FONT}`; ctx.fillStyle = '#16212A'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label(ch), g.ml + pw / 2, g.mt + g.h + 42);
+  } };
+}
+const ctx0 = document.createElement('canvas').getContext('2d');
+const hexA = (hex, a) => `rgba(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(',')},${a})`;
+
+// ---------- export tab UI
+function renderExport() {
+  if (!S.samples.length) return;
+  if (!E.sampleId || !S.samples.some(s => s.id === E.sampleId)) E.sampleId = activeSample().id;
+  if (!E.ch || !S.channels.includes(E.ch)) E.ch = S.channels.find(isFluor) || S.channels[0];
+  if (E.pop === 'root' && !E.popTouched && gateById(S.view.pop)) E.pop = S.view.pop;
+  const box = $('#expControls'); box.replaceChildren();
+  const L = E.layout, onePlot = L === 'overlay' || L === 'ridge';
+  const set = (k, v, full) => { E[k] = v; markDirty(); full ? renderExport() : renderExportPreview(); };
+
+  // layout picker
+  box.append(el('h3', {}, 'Layout'), el('div', { class: 'layouts', role: 'radiogroup', 'aria-label': 'Figure layout' },
+    ...LAYOUTS.map(l => el('button', { class: 'layout' + (L === l.id ? ' on' : ''), role: 'radio', 'aria-checked': L === l.id, onclick: () => set('layout', l.id, true) },
+      layoutIcon(l.id), el('span', { class: 'lname' }, l.name)))),
+    el('p', { class: 'hint', style: 'padding:6px 0 0' }, LAYOUTS.find(l => l.id === L).desc));
+
+  if (L === 'free') {
+    box.append(...freeControls());
+    box.append(el('div', { class: 'expsec' }, el('h3', {}, 'Appearance'),
+      fieldText('Figure title', E.heading, v => set('heading', v)),
+      fieldRange('Text size', 0.8, 1.6, 0.05, E.fontScale, v => set('fontScale', v), v => Math.round(v * 100) + '%'),
+      checkRow('Panel titles', E.titles, v => set('titles', v)),
+      checkRow('Gate names', E.labels, v => set('labels', v)),
+      checkRow('Gate percentages', E.pct, v => set('pct', v)),
+      checkRow('Transparent background', E.transparent, v => set('transparent', v))));
+    box.append(outputSection());
+    renderExportPreview();
+    return;
+  }
+
+  // content
+  const content = el('div', { class: 'expsec' }, el('h3', {}, 'Content'));
+  if (L === 'current') content.append(el('p', { class: 'hint', style: 'padding:0' }, `${popName(S.view.pop)}, ${short(S.view.x)}${S.view.y ? ' vs ' + short(S.view.y) : ' histogram'} for ${activeSample().name}. Change it on the Gate tab.`));
+  if (L === 'strategy') content.append(fieldSel('Sample', S.samples.map(s => [s.id, s.name]), E.sampleId, v => set('sampleId', +v)));
+  if (onePlot) {
+    content.append(fieldSel('Compare', [['samples', 'Samples, in one population'], ['populations', 'Populations, in one sample']], E.compare, v => set('compare', v, true)));
+    content.append(fieldSel('Marker', S.channels.map(c => [c, label(c)]), E.ch, v => { E.gate = ''; set('ch', v, true); }));
+    if (E.compare === 'populations') {
+      content.append(fieldSel('Sample', S.samples.map(s => [s.id, s.name]), E.sampleId, v => set('sampleId', +v, true)));
+      const all = dfs().filter(d => gateById(d.id));
+      content.append(el('div', { class: 'sublabel' }, 'Populations'), checkList(all.map(({ id, depth }) => [id, '\u2002'.repeat(depth) + popName(id)]),
+        id => E.pops ? E.pops.has(id) : true, (id, on) => {
+          const cur = E.pops || new Set(all.map(d => d.id)); on ? cur.add(id) : cur.delete(id); E.pops = cur; markDirty(); renderExportPreview();
+        }, 'Draw some gates first.'));
+    } else {
+      content.append(fieldSel('Population', dfs().map(({ id, depth }) => [id, '\u2002'.repeat(depth) + popName(id)]), E.pop, v => { E.gate = ''; E.popTouched = true; set('pop', v, true); }));
+      if (L === 'ridge') {
+        const ints = children(E.pop).filter(g => g.type === 'interval' && g.x === E.ch);
+        if (ints.length && !E.gate) E.gate = ints[0].id;
+        content.append(fieldSel('Show gate', [['', 'None'], ...ints.map(g => [g.id, g.name])], E.gate, v => set('gate', v)));
+      }
+    }
+  }
+  if (['strategy', 'cols', 'rows'].includes(L)) {
+    const gs = plotGroups();
+    content.append(el('div', { class: 'sublabel' }, 'Plots'), checkList(gs.map(g => [g.key, groupLabel(g)]), k => !E.plots || E.plots.has(k), (k, on) => {
+      const cur = E.plots || new Set(gs.map(g => g.key)); on ? cur.add(k) : cur.delete(k); E.plots = cur.size === gs.length ? null : cur; markDirty(); renderExportPreview();
+    }, gs.length ? null : 'No gates yet.'));
+  }
+  if (L !== 'current' && L !== 'strategy' && !(onePlot && E.compare === 'populations')) {
+    content.append(el('div', { class: 'sublabel' }, 'Samples'), checkList(S.samples.map(s => [s.id, s.name]), id => E.samples ? E.samples.has(id) : !S.ctrl[id], (id, on) => {
+      const cur = E.samples || new Set(S.samples.filter(s => !S.ctrl[s.id]).map(s => s.id)); on ? cur.add(id) : cur.delete(id); E.samples = cur; markDirty(); renderExportPreview();
+    }));
+  }
+  box.append(content);
+
+  // appearance
+  const look = el('div', { class: 'expsec' }, el('h3', {}, 'Appearance'));
+  look.append(fieldText('Figure title', E.heading, v => set('heading', v)));
+  if (L === 'strategy') look.append(fieldRange('Columns', 1, 6, 1, E.cols, v => set('cols', v)));
+  look.append(fieldRange('Panel size', 200, 520, 10, E.size, v => set('size', v), v => v + ' px'));
+  look.append(fieldRange('Text size', 0.8, 1.6, 0.05, E.fontScale, v => set('fontScale', v), v => Math.round(v * 100) + '%'));
+  if (!onePlot) look.append(fieldRange('Dot size', 1, 4, 1, E.pt, v => set('pt', v)));
+  look.append(checkRow('Panel titles', E.titles, v => set('titles', v)), checkRow('Gate names', E.labels, v => set('labels', v)));
+  if (!onePlot) look.append(checkRow('Gate percentages', E.pct, v => set('pct', v)));
+  look.append(checkRow('Transparent background', E.transparent, v => set('transparent', v)));
+  box.append(look);
+
+  box.append(outputSection());
+  renderExportPreview();
+}
+function outputSection() {
+  const set = (k, v, full) => { E[k] = v; markDirty(); full ? renderExport() : renderExportPreview(); };
+  const outSec = el('div', { class: 'expsec' }, el('h3', {}, 'File'));
+  outSec.append(el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'File format' }, ...[['png', 'PNG'], ['svg', 'SVG'], ['pdf', 'PDF']].map(([v, t]) =>
+    el('button', { role: 'radio', 'aria-checked': E.fmt === v, class: E.fmt === v ? 'on' : '', onclick: () => set('fmt', v, true) }, t))));
+  if (E.fmt === 'png') outSec.append(fieldSel('Resolution', [[1, 'Screen (1×)'], [2, 'High (2×, ~150 dpi)'], [4, 'Print (4×, ~300 dpi)']], E.scale, v => set('scale', +v, true)));
+  outSec.append(el('p', { class: 'hint', style: 'padding:4px 0 10px' }, { png: 'A bitmap image for slides and documents.', svg: 'Vector file for Illustrator, Inkscape or Affinity. Text and gates stay editable; dot plots are embedded images.', pdf: 'Opens your browser’s print dialog. Choose “Save as PDF”. Axes, text and gates stay vector.' }[E.fmt]));
+  outSec.append(el('button', { class: 'btn primary', id: 'btnExportFig', onclick: doExport }, E.fmt === 'pdf' ? 'Open print dialog' : `Export ${E.fmt.toUpperCase()}`));
+  return outSec;
+}
+function fieldSel(lab, opts, val, onchange) {
+  const id = 'ex-' + lab.replace(/\W/g, '');
+  const sel = el('select', { id, onchange: e => onchange(e.target.value) }, ...opts.map(([v, t]) => el('option', { value: v }, t)));
+  sel.value = String(val);
+  return el('div', { class: 'field' }, el('label', { for: id }, lab), sel);
+}
+function fieldText(lab, val, onchange) {
+  const id = 'ex-' + lab.replace(/\W/g, '');
+  return el('div', { class: 'field' }, el('label', { for: id }, lab), el('input', { id, type: 'text', value: val, placeholder: 'Optional', oninput: e => onchange(e.target.value) }));
+}
+function fieldRange(lab, min, max, step, val, onchange, fmt = v => v) {
+  const id = 'ex-' + lab.replace(/\W/g, ''), out = el('span', { class: 'rangeval' }, fmt(val));
+  return el('div', { class: 'field' }, el('label', { for: id }, lab), el('div', { class: 'rangewrap' }, el('input', { id, type: 'range', min, max, step, value: val, oninput: e => { out.textContent = fmt(+e.target.value); onchange(+e.target.value); } }), out));
+}
+function checkRow(lab, val, onchange) { return el('label', { class: 'chk', style: 'padding:3px 0' }, el('input', { type: 'checkbox', checked: val, onchange: e => onchange(e.target.checked) }), lab); }
+function checkList(items, isOn, onToggle, emptyMsg) {
+  if (!items.length) return el('p', { class: 'hint', style: 'padding:0' }, emptyMsg || 'Nothing to choose.');
+  return el('div', { class: 'checklist' }, ...items.map(([k, t]) => el('label', { class: 'chk', style: 'padding:2px 0' }, el('input', { type: 'checkbox', checked: isOn(k), onchange: e => onToggle(k, e.target.checked) }), el('span', {}, t))));
+}
+function layoutIcon(id) {
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 44 32'); svg.setAttribute('width', '44'); svg.setAttribute('height', '32'); svg.setAttribute('aria-hidden', 'true');
+  const r = (x, y, w, h, fill) => { const e = document.createElementNS(ns, 'rect'); Object.entries({ x, y, width: w, height: h, rx: 1.5, fill: fill || 'none', stroke: 'currentColor', 'stroke-width': 1.3 }).forEach(([k, v]) => e.setAttribute(k, v)); svg.append(e); };
+  const p = (d, extra = {}) => { const e = document.createElementNS(ns, 'path'); e.setAttribute('d', d); Object.entries({ fill: 'none', stroke: 'currentColor', 'stroke-width': 1.3, ...extra }).forEach(([k, v]) => e.setAttribute(k, v)); svg.append(e); };
+  if (id === 'current') r(13, 5, 18, 22);
+  if (id === 'strategy') { [[4, 4], [17, 4], [30, 4], [4, 18], [17, 18]].forEach(([x, y]) => r(x, y, 10, 10)); }
+  if (id === 'cols') { [4, 17, 30].forEach(x => { p(`M${x} 3h10`, { 'stroke-width': 2 }); r(x, 7, 10, 10); r(x, 19, 10, 10); }); }
+  if (id === 'rows') { [5, 19].forEach(y => { p(`M3 ${y}v10`, { 'stroke-width': 2 }); r(7, y, 10, 10); r(19, y, 10, 10); r(31, y, 10, 10); }); }
+  if (id === 'overlay') { r(4, 4, 36, 24); p('M6 26C12 26 12 10 16 10S20 26 24 26', {}); p('M12 26C18 26 20 14 24 14S30 26 36 26', { 'stroke-dasharray': '2 1.5' }); }
+  if (id === 'ridge') { [8, 15, 22].forEach(y => p(`M6 ${y + 6}C11 ${y + 6} 12 ${y} 16 ${y}S21 ${y + 6} 26 ${y + 6}H38`)); }
+  return svg;
+}
+function renderExportPreview() {
+  const cvp = $('#expPreview'), wrap = $('#expPreviewWrap'); if (!cvp || !S.samples.length) return;
+  const fig = buildFigure(), avail = Math.max(280, wrap.clientWidth - 2), sc = Math.min(1, avail / fig.W), dpr = window.devicePixelRatio || 1;
+  cvp.width = Math.round(fig.W * sc * dpr); cvp.height = Math.round(fig.H * sc * dpr);
+  cvp.style.width = Math.round(fig.W * sc) + 'px'; cvp.style.height = Math.round(fig.H * sc) + 'px';
+  cvp.classList.toggle('checker', E.transparent);
+  const ctx = cvp.getContext('2d'); ctx.setTransform(sc * dpr, 0, 0, sc * dpr, 0, 0); ctx.clearRect(0, 0, fig.W, fig.H);
+  fig.draw(ctx);
+  cvp.classList.toggle('editable', fig.free);
+  if (fig.free) drawFreeChrome(ctx, sc); else { freeSel = null; freeHover = null; cvp.style.cursor = 'default'; }
+  const px = E.fmt === 'png' ? `${Math.round(fig.W * E.scale)} × ${Math.round(fig.H * E.scale)} px` : `${Math.round(fig.W)} × ${Math.round(fig.H)} pt`;
+  $('#expInfo').textContent = fig.empty ? '' : `Output size ${px}${sc < 1 ? `. Preview shown at ${Math.round(sc * 100)}%.` : '.'}`;
+  const b = $('#btnExportFig'); if (b) b.disabled = !!fig.empty;
+}
+function figureName() {
+  if (E.layout === 'free') return `Figure_${(E.heading || activeSample().name)}`.replace(/[^\w.+-]+/g, '_');
+  const s = E.layout === 'strategy' ? expSample().name : E.layout === 'current' ? activeSample().name : (E.layout === 'overlay' || E.layout === 'ridge') ? `${popName(E.pop)}_${short(E.ch)}` : 'samples';
+  return `${LAYOUTS.find(l => l.id === E.layout).name}_${s}`.replace(/[^\w.+-]+/g, '_');
+}
+function figureSvg(fig) { const c = new SvgCtx(Math.ceil(fig.W), Math.ceil(fig.H)); fig.draw(c); return c.toString(); }
+function doExport() {
+  const fig = buildFigure(); if (fig.empty) return;
+  if (E.fmt === 'png') {
+    const c = document.createElement('canvas'); c.width = Math.round(fig.W * E.scale); c.height = Math.round(fig.H * E.scale);
+    const ctx = c.getContext('2d'); ctx.scale(E.scale, E.scale); fig.draw(ctx);
+    c.toBlob(b => { download(URL.createObjectURL(b), figureName() + '.png'); toast('Figure exported as PNG.'); }, 'image/png');
+  } else if (E.fmt === 'svg') {
+    download(URL.createObjectURL(new Blob([figureSvg(fig)], { type: 'image/svg+xml' })), figureName() + '.svg'); toast('Figure exported as SVG.');
+  } else {
+    const svg = figureSvg(fig).replace(/^<\?xml[^>]*>\s*/, '');
+    const w = window.open('', '_blank');
+    if (!w) return toast('The print window was blocked. Allow pop-ups for this file, or export SVG and convert it.', true);
+    w.document.write(`<!DOCTYPE html><html><head><title>${SvgCtx.esc(figureName())}</title><style>@page{size:${Math.ceil(fig.W)}px ${Math.ceil(fig.H)}px;margin:0}html,body{margin:0;padding:0}svg{display:block;width:100%;height:auto}</style></head><body>${svg}<script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script></body></html>`);
+    w.document.close();
+  }
+}
+
+// --------------------------------------------------- free-form canvas ---
+/* A figure the user composes by hand: plot panels, text and arrows placed anywhere.
+   Items are plain objects so they serialise straight into the project file, and they
+   draw through the same paintPlot routine as every other layout, so PNG, SVG and PDF
+   output all stay identical to the preview. */
+const FREE_DEFAULT = () => ({ W: 900, H: 640, snap: 5, items: [] });
+let freeSel = null, freeDrag = null, freeHover = null;
+const ARROW_COLORS = ['#16212A', '#B3261E', '#0A73B8', '#2E8B57', '#7A3FD1', '#E08A00'];
+
+function freeState() { if (!E.free) E.free = FREE_DEFAULT(); return E.free; }
+const freeItems = () => freeState().items;
+const freeById = id => freeItems().find(i => i.id === id);
+function freeAdd(item) {
+  const F = freeState();
+  item.id = 'i' + (F.nextId = (F.nextId || 0) + 1);
+  F.items.push(item); freeSel = item.id; markDirty(); renderExport();
+  return item;
+}
+/* Finds somewhere the new item will actually be visible rather than buried under a plot. */
+function freeFreeSpot(w, h, step = 16) {
+  const F = freeState(), used = F.items.map(freeBounds);
+  const clear = (x, y) => !used.some(b => x < b.x + b.w + 8 && x + w + 8 > b.x && y < b.y + b.h + 8 && y + h + 8 > b.y);
+  for (let y = 24; y + h <= F.H; y += step) for (let x = 24; x + w <= F.W; x += step) if (clear(x, y)) return [x, y];
+  let maxY = 24; used.forEach(b => { maxY = Math.max(maxY, b.y + b.h + 14); });
+  if (maxY + h > F.H) F.H = Math.round(maxY + h + 24);
+  return [24, maxY];
+}
+function addFreePanel(seed = {}) {
+  const w = E.size, h = E.size, [x, y] = freeFreeSpot(w, h, Math.round(w / 4));
+  const gr = plotGroups()[0];
+  return freeAdd({ type: 'panel', x, y, w, h, pt: E.pt,
+    sampleId: seed.sampleId ?? (E.sampleId || activeSample().id),
+    pop: seed.pop ?? (gr ? gr.parent : S.view.pop),
+    xch: seed.xch ?? (gr ? gr.x : S.view.x),
+    ych: seed.ych !== undefined ? seed.ych : (gr ? gr.y : (S.view.y || null)) });
+}
+function addFreeText() {
+  const [x, y] = freeFreeSpot(210, 26, 10);
+  return freeAdd({ type: 'text', x, y, text: 'Double-click to edit', size: 15, weight: 600, color: '#16212A', align: 'left' });
+}
+function addFreeArrow(head) {
+  const [x, y] = freeFreeSpot(170, 20, 10);
+  return freeAdd({ type: 'arrow', x1: x + 6, y1: y + 10, x2: x + 160, y2: y + 10, head, width: 1.8, color: '#16212A' });
+}
+function fillFromStrategy() {
+  const F = freeState(), s = expSample(), gs = expGroups();
+  if (!gs.length) return toast('Draw some gates first, then this fills the canvas with them.', true);
+  F.items = F.items.filter(i => i.type !== 'panel');
+  const P = E.size, gap = 16, perRow = Math.max(1, Math.floor((F.W - 2 * 24 + gap) / (P + gap)));
+  gs.forEach((gr, i) => {
+    F.items.push({ id: 'i' + (F.nextId = (F.nextId || 0) + 1), type: 'panel', x: 24 + (i % perRow) * (P + gap), y: 24 + Math.floor(i / perRow) * (P + gap),
+      w: P, h: P, pt: E.pt, sampleId: s.id, pop: gr.parent, xch: gr.x, ych: gr.y });
+  });
+  const rows = Math.ceil(gs.length / perRow);
+  F.H = Math.max(F.H, 24 * 2 + rows * P + (rows - 1) * gap);
+  freeSel = null; markDirty(); renderExport();
+}
+function fitFreeCanvas() {
+  const F = freeState(); if (!F.items.length) return;
+  let maxX = 0, maxY = 0;
+  F.items.forEach(i => { const b = freeBounds(i); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); });
+  F.W = Math.round(maxX + 24); F.H = Math.round(maxY + 24); markDirty(); renderExport();
+}
+
+/* One panel, one or more samples. With overlay on, each sample gets its own colour: curves for a
+   histogram, alpha-blended dots otherwise. The legend carries each sample's gate frequency, which is
+   the number you actually want when comparing conditions in a single plot. */
+function panelSamples(it) {
+  const base = S.samples.find(x => x.id === it.sampleId) || activeSample();
+  const extra = (it.overlay || []).map(id => S.samples.find(x => x.id === id)).filter(Boolean).filter(x => x !== base);
+  return [base, ...extra];
+}
+function panelPops(it) {
+  const base = it.pop === 'root' || gateById(it.pop) ? it.pop : 'root';
+  const extra = (it.popOverlay || []).filter(p => p !== base && (p === 'root' || gateById(p)));
+  return [base, ...extra];
+}
+/* A panel can compare across samples, across populations, or both at once; the series are the
+   cross product. Histograms become one curve per series, each normalised to its own mode so
+   populations of very different size stay comparable; dot plots become alpha-blended colours. */
+function freePanelSpec(it) {
+  const ss = panelSamples(it), pops = panelPops(it), s = ss[0], pop = pops[0];
+  const multiS = ss.length > 1, multiP = pops.length > 1, multi = multiS || multiP;
+  const xch = S.channels.includes(it.xch) ? it.xch : S.channels[0];
+  const ych = it.ych && S.channels.includes(it.ych) ? it.ych : null;
+  const idx = getPop(s, pop), pn = idx.length;
+  const gates = children(pop).filter(g => g.x === xch && (ych ? (g.type !== 'interval' && g.y === ych) : g.type === 'interval'));
+  const shared = multiP ? pops.map(p => p === 'root' ? null : gateById(p).parent) : [];
+  const sharedParent = multiP && shared.every(p => p && p === shared[0]) ? shared[0] : null;
+  const defTitle = multiP ? (sharedParent ? popName(sharedParent) : label(xch)) : popName(pop);
+  const spec = { xch, ych, xT: getT(s, xch), yT: ych ? getT(s, ych) : null, idx, small: it.w < 340, pt: it.pt || E.pt, fontScale: E.fontScale,
+    gates: gates.map(g => ({ gate: g, pct: multi ? null : (pn ? getPop(s, g.id).length / pn * 100 : 0) })),
+    labels: E.labels && !multiP, pct: multi ? false : E.pct, transparent: true,
+    title: E.titles ? (it.title || defTitle) : '', subtitle: E.titles ? (it.subtitle || (multi ? '' : fmtInt(pn))) : '',
+    cacheKey: `fp|${ss.map(x => x.id).join('.')}|${pops.join('.')}|${xch}|${ych}|${Math.round(it.w)}|${Math.round(it.h)}|${it.pt || E.pt}|${S.version}` };
+  if (!multi) return spec;
+  const parts = [];
+  ss.forEach(x => pops.forEach(p => parts.push({ s: x, pop: p, idx: getPop(x, p) })));
+  parts.forEach((p, k) => { p.color = RIDGE_COLORS[k % RIDGE_COLORS.length]; });
+  if (ych) spec.series = parts.map(p => ({ xT: getT(p.s, xch), yT: getT(p.s, ych), idx: p.idx, color: p.color }));
+  else spec.curves = parts.map(p => ({ xT: getT(p.s, xch), idx: p.idx, color: p.color }));
+  spec.legendPos = it.legendPos || 'tr';
+  if (it.legend !== false) {
+    const gate = gates.length === 1 && !multiP ? gates[0] : null;
+    spec.legendItems = parts.map(p => {
+      const base = multiS && multiP ? `${p.s.name} \u00b7 ${popName(p.pop)}` : multiP ? popName(p.pop) : p.s.name;
+      const stat = gate && p.idx.length ? `  ${fmtPct(getPop(p.s, gate.id).length / p.idx.length * 100)}`
+        : multiP ? `  ${fmtInt(p.idx.length)}` : '';
+      return { color: p.color, name: base + stat };
+    });
+  }
+  return spec;
+}
+function drawFreeItem(ctx, it) {
+  if (it.type === 'panel') { ctx.save(); ctx.translate(it.x, it.y); paintPlot(ctx, freePanelSpec(it), it.w, it.h); ctx.restore(); return; }
+  if (it.type === 'text') {
+    const lines = String(it.text || '').split('\n');
+    ctx.font = `${it.weight || 400} ${it.size}px ${FONT}`; ctx.fillStyle = it.color || '#16212A';
+    ctx.textAlign = it.align || 'left'; ctx.textBaseline = 'alphabetic';
+    lines.forEach((ln, k) => ctx.fillText(ln, it.x, it.y + it.size + k * it.size * 1.35));
+    return;
+  }
+  // arrow / line
+  const dx = it.x2 - it.x1, dy = it.y2 - it.y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+  const hl = Math.max(7, (it.width || 1.8) * 4.2), hw = hl * 0.55;
+  const endHead = it.head === 'end' || it.head === 'both', startHead = it.head === 'both';
+  ctx.strokeStyle = it.color || '#16212A'; ctx.lineWidth = it.width || 1.8;
+  if (it.dashed) ctx.setLineDash([it.width * 3, it.width * 2.2]);
+  ctx.beginPath();
+  ctx.moveTo(it.x1 + (startHead ? ux * hl * 0.9 : 0), it.y1 + (startHead ? uy * hl * 0.9 : 0));
+  ctx.lineTo(it.x2 - (endHead ? ux * hl * 0.9 : 0), it.y2 - (endHead ? uy * hl * 0.9 : 0));
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = it.color || '#16212A';
+  const head = (tipX, tipY, sx, sy) => {
+    ctx.beginPath(); ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - sx * hl - (-sy) * hw, tipY - sy * hl - sx * hw);
+    ctx.lineTo(tipX - sx * hl + (-sy) * hw, tipY - sy * hl - (-sx) * hw);
+    ctx.closePath(); ctx.fill();
+  };
+  if (endHead) head(it.x2, it.y2, ux, uy);
+  if (startHead) head(it.x1, it.y1, -ux, -uy);
+}
+function freeBounds(it) {
+  if (it.type === 'panel') return { x: it.x, y: it.y, w: it.w, h: it.h };
+  if (it.type === 'text') {
+    const lines = String(it.text || ' ').split('\n');
+    ctx0.font = `${it.weight || 400} ${it.size}px ${FONT}`;
+    const w = Math.max(...lines.map(l => ctx0.measureText(l).width), 10), h = it.size * (1 + (lines.length - 1) * 1.35) * 1.1;
+    const x = it.align === 'center' ? it.x - w / 2 : it.align === 'right' ? it.x - w : it.x;
+    return { x, y: it.y, w, h };
+  }
+  const pad = Math.max(6, (it.width || 2) * 3);
+  return { x: Math.min(it.x1, it.x2) - pad, y: Math.min(it.y1, it.y2) - pad, w: Math.abs(it.x2 - it.x1) + 2 * pad, h: Math.abs(it.y2 - it.y1) + 2 * pad };
+}
+function freeFigure() {
+  const F = freeState(), W = F.W, H = F.H;
+  return { W, H, free: true, draw: ctx => {
+    if (!E.transparent) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); }
+    if (E.heading) { ctx.font = `600 ${17 * E.fontScale}px ${FONT}`; ctx.fillStyle = '#16212A'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(E.heading, 22, 22 + 16 * E.fontScale); }
+    F.items.forEach(it => drawFreeItem(ctx, it));
+  } };
+}
+
+// ---------- selection chrome, drawn on the preview only
+function drawFreeChrome(ctx, sc) {
+  const it = freeById(freeSel);
+  const ring = (b, color) => { ctx.save(); ctx.setLineDash([4 / sc, 3 / sc]); ctx.strokeStyle = color; ctx.lineWidth = 1 / sc; ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4); ctx.restore(); };
+  if (freeHover && freeHover !== freeSel) { const h = freeById(freeHover); if (h) ring(freeBounds(h), 'rgba(22,33,42,.35)'); }
+  if (!it) return;
+  const b = freeBounds(it); ring(b, '#0A73B8');
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#0A73B8'; ctx.lineWidth = 1.5 / sc;
+  const hs = 4.5 / sc;
+  freeHandles(it).forEach(p => { ctx.beginPath(); ctx.rect(p[0] - hs, p[1] - hs, hs * 2, hs * 2); ctx.fill(); ctx.stroke(); });
+}
+function freeHandles(it) {
+  if (it.type === 'panel') return [[it.x, it.y], [it.x + it.w, it.y], [it.x + it.w, it.y + it.h], [it.x, it.y + it.h]];
+  if (it.type === 'text') return [];
+  return [[it.x1, it.y1], [it.x2, it.y2]];
+}
+function freeHit(x, y, sc) {
+  const tol = 7 / sc;
+  const it = freeById(freeSel);
+  if (it) { const hs = freeHandles(it); for (let i = 0; i < hs.length; i++) if (Math.abs(hs[i][0] - x) < tol + 2 && Math.abs(hs[i][1] - y) < tol + 2) return { item: it, handle: i }; }
+  const items = freeItems();
+  for (let i = items.length - 1; i >= 0; i--) {
+    const o = items[i];
+    if (o.type === 'arrow') { if (distToSeg(x, y, o.x1, o.y1, o.x2, o.y2) < Math.max(tol, (o.width || 2) * 1.5)) return { item: o, handle: -1 }; continue; }
+    const b = freeBounds(o);
+    if (x >= b.x - 2 && x <= b.x + b.w + 2 && y >= b.y - 2 && y <= b.y + b.h + 2) return { item: o, handle: -1 };
+  }
+  return null;
+}
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2)) : 0;
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+const snapv = v => { const s = freeState().snap; return s > 1 ? Math.round(v / s) * s : Math.round(v); };
+
+function freePointerDown(e) {
+  const cvp = $('#expPreview'), r = cvp.getBoundingClientRect(), sc = r.width / freeState().W;
+  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+  const hit = freeHit(x, y, sc);
+  cvp.setPointerCapture(e.pointerId);
+  if (!hit) { if (freeSel) { freeSel = null; renderExport(); } return; }
+  const changed = freeSel !== hit.item.id;
+  freeSel = hit.item.id;
+  freeDrag = { item: hit.item, handle: hit.handle, ox: x, oy: y, orig: JSON.parse(JSON.stringify(hit.item)), moved: false };
+  if (changed) renderExport(); else renderExportPreview();
+}
+function freePointerMove(e) {
+  const cvp = $('#expPreview'), r = cvp.getBoundingClientRect(), F = freeState(), sc = r.width / F.W;
+  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+  if (!freeDrag) {
+    const hit = freeHit(x, y, sc), id = hit ? hit.item.id : null;
+    cvp.style.cursor = hit ? (hit.handle >= 0 ? 'nwse-resize' : 'move') : 'default';
+    if (id !== freeHover) { freeHover = id; renderExportPreview(); }
+    return;
+  }
+  const d = freeDrag, o = d.orig, dx = x - d.ox, dy = y - d.oy;
+  d.moved = true;
+  if (d.handle < 0) {
+    if (o.type === 'arrow') { d.item.x1 = snapv(o.x1 + dx); d.item.y1 = snapv(o.y1 + dy); d.item.x2 = snapv(o.x2 + dx); d.item.y2 = snapv(o.y2 + dy); }
+    else { d.item.x = snapv(o.x + dx); d.item.y = snapv(o.y + dy); }
+  } else if (o.type === 'arrow') {
+    const k = d.handle === 0 ? '1' : '2';
+    d.item['x' + k] = snapv(o['x' + k] + dx); d.item['y' + k] = snapv(o['y' + k] + dy);
+  } else {
+    let x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h;
+    if (d.handle === 0) { x0 = o.x + dx; y0 = o.y + dy; } else if (d.handle === 1) { x1 = o.x + o.w + dx; y0 = o.y + dy; }
+    else if (d.handle === 2) { x1 = o.x + o.w + dx; y1 = o.y + o.h + dy; } else { x0 = o.x + dx; y1 = o.y + o.h + dy; }
+    if (e.shiftKey) { const side = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); if (d.handle === 0 || d.handle === 3) x0 = x1 - side; else x1 = x0 + side; if (d.handle === 0 || d.handle === 1) y0 = y1 - side; else y1 = y0 + side; }
+    d.item.x = snapv(Math.min(x0, x1)); d.item.y = snapv(Math.min(y0, y1));
+    d.item.w = Math.max(140, snapv(Math.abs(x1 - x0))); d.item.h = Math.max(120, snapv(Math.abs(y1 - y0)));
+  }
+  renderExportPreview();
+}
+function freePointerUp() { if (freeDrag) { if (freeDrag.moved) { markDirty(); renderExport(); } freeDrag = null; } }
+function freeDblClick(e) {
+  const r = $('#expPreview').getBoundingClientRect(), sc = r.width / freeState().W;
+  const hit = freeHit((e.clientX - r.left) / sc, (e.clientY - r.top) / sc, sc);
+  if (hit && hit.item.type === 'text') { freeSel = hit.item.id; renderExport(); const f = $('#freeTextInput'); if (f) { f.focus(); f.select(); } }
+}
+function freeDelete() { const it = freeById(freeSel); if (!it) return; freeState().items = freeItems().filter(i => i !== it); freeSel = null; markDirty(); renderExport(); }
+function freeDuplicate() {
+  const it = freeById(freeSel); if (!it) return;
+  const c = JSON.parse(JSON.stringify(it));
+  if (c.type === 'arrow') { c.x1 += 16; c.y1 += 16; c.x2 += 16; c.y2 += 16; } else { c.x += 16; c.y += 16; }
+  freeAdd(c);
+}
+function freeZ(dir) {
+  const F = freeState(), i = F.items.findIndex(o => o.id === freeSel); if (i < 0) return;
+  const j = dir === 'front' ? F.items.length - 1 : dir === 'back' ? 0 : Math.min(F.items.length - 1, Math.max(0, i + dir));
+  const [o] = F.items.splice(i, 1); F.items.splice(j, 0, o); markDirty(); renderExport();
+}
+
+// ---------- inspector for the free canvas
+function freeControls() {
+  const F = freeState(), out = [];
+  out.push(el('div', { class: 'expsec' }, el('h3', {}, 'Canvas'),
+    el('div', { class: 'freeadd' },
+      el('button', { class: 'btn', onclick: () => addFreePanel() }, '+ Plot'),
+      el('button', { class: 'btn', onclick: addFreeText }, '+ Text'),
+      el('button', { class: 'btn', onclick: () => addFreeArrow('end') }, '+ Arrow'),
+      el('button', { class: 'btn', onclick: () => addFreeArrow('none') }, '+ Line')),
+    fieldRange('Width', 300, 2000, 10, F.W, v => { F.W = v; markDirty(); renderExportPreview(); }, v => v + ' px'),
+    fieldRange('Height', 240, 2000, 10, F.H, v => { F.H = v; markDirty(); renderExportPreview(); }, v => v + ' px'),
+    fieldSel('Snap', [[1, 'Off'], [5, '5 px'], [10, '10 px'], [25, '25 px']], F.snap, v => { F.snap = +v; markDirty(); }),
+    el('div', { class: 'minibtns', style: 'padding-left:0' },
+      el('button', { class: 'btn', title: 'Lay out every gating step of the chosen sample', onclick: fillFromStrategy }, 'Fill from strategy'),
+      el('button', { class: 'btn', onclick: fitFreeCanvas }, 'Shrink to fit')),
+    el('p', { class: 'hint', style: 'padding:8px 0 0' }, freeItems().length ? 'Drag items in the preview to move them, corners to resize. Double-click text to edit.' : 'Add a plot, then arrange it freely. Nothing here is locked to a grid.')));
+
+  const it = freeById(freeSel);
+  const sec = el('div', { class: 'expsec' }, el('h3', {}, it ? ({ panel: 'Selected plot', text: 'Selected text', arrow: 'Selected line' })[it.type] : 'Selection'));
+  if (!it) { sec.append(el('p', { class: 'hint', style: 'padding:0' }, 'Click an item in the preview to edit it.')); out.push(sec); return out; }
+  const upd = (k, v, full) => { it[k] = v; markDirty(); full ? renderExport() : renderExportPreview(); };
+  if (it.type === 'panel') {
+    sec.append(fieldSel('Sample', S.samples.map(s => [s.id, s.name]), it.sampleId, v => upd('sampleId', +v)));
+    sec.append(fieldSel('Population', dfs().map(({ id, depth }) => [id, '\u2002'.repeat(depth) + popName(id)]), it.pop, v => upd('pop', v, true)));
+    sec.append(fieldSel('X axis', S.channels.map(c => [c, label(c)]), it.xch, v => upd('xch', v, true)));
+    sec.append(fieldSel('Y axis', [['', 'Histogram'], ...S.channels.map(c => [c, label(c)])], it.ych || '', v => upd('ych', v || null, true)));
+    sec.append(fieldText('Title', it.title || '', v => upd('title', v)));
+    const others = S.samples.filter(s => s.id !== it.sampleId);
+    const otherPops = dfs().filter(d => d.id !== it.pop);
+    sec.append(el('div', { class: 'sublabel' }, 'Also show: other samples'),
+      checkList(others.map(s => [s.id, s.name]), id => (it.overlay || []).includes(id), (id, on) => {
+        const cur = new Set(it.overlay || []); on ? cur.add(id) : cur.delete(id);
+        it.overlay = [...cur]; markDirty(); renderExport();
+      }, 'Load more samples to overlay them.'));
+    sec.append(el('div', { class: 'sublabel' }, 'Also show: other populations'),
+      checkList(otherPops.map(({ id, depth }) => [id, '\u2002'.repeat(depth) + popName(id)]), id => (it.popOverlay || []).includes(id), (id, on) => {
+        const cur = new Set(it.popOverlay || []); on ? cur.add(id) : cur.delete(id);
+        it.popOverlay = [...cur]; markDirty(); renderExport();
+      }, 'Draw more gates to overlay their populations.'));
+    if ((it.overlay || []).length || (it.popOverlay || []).length) sec.append(...[
+      checkRow('Legend', it.legend !== false, v => upd('legend', v)),
+      it.legend === false ? null : fieldSel('Legend corner', [['tr', 'Top right'], ['tl', 'Top left'], ['br', 'Bottom right'], ['bl', 'Bottom left']], it.legendPos || 'tr', v => upd('legendPos', v)),
+      el('p', { class: 'hint', style: 'padding:2px 0 0' }, (it.popOverlay || []).length
+        ? 'Each population is drawn in its own colour and, on a histogram, normalised to its own mode so sizes stay comparable. The legend shows event counts.'
+        : 'Samples are coloured individually. With exactly one gate on the panel, the legend shows each sample\u2019s frequency for it.')].filter(Boolean));
+  } else if (it.type === 'text') {
+    const ta = el('textarea', { id: 'freeTextInput', rows: 3, class: 'freetext', oninput: e => upd('text', e.target.value) }); ta.value = it.text || '';
+    sec.append(el('div', { class: 'field', style: 'align-items:start' }, el('label', { for: 'freeTextInput' }, 'Text'), ta));
+    sec.append(fieldRange('Size', 8, 40, 1, it.size, v => upd('size', v), v => v + ' px'));
+    sec.append(fieldSel('Weight', [[400, 'Regular'], [600, 'Bold']], it.weight || 400, v => upd('weight', +v)));
+    sec.append(fieldSel('Align', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']], it.align || 'left', v => upd('align', v)));
+    sec.append(swatchRow(it.color || '#16212A', v => upd('color', v)));
+  } else {
+    sec.append(fieldSel('Ends', [['end', 'Arrow one end'], ['both', 'Arrows both ends'], ['none', 'Plain line']], it.head, v => upd('head', v)));
+    sec.append(fieldRange('Thickness', 1, 6, 0.5, it.width || 1.8, v => upd('width', v)));
+    sec.append(checkRow('Dashed', !!it.dashed, v => upd('dashed', v)));
+    sec.append(swatchRow(it.color || '#16212A', v => upd('color', v)));
+  }
+  sec.append(el('div', { class: 'minibtns', style: 'padding-left:0;margin-top:6px' },
+    el('button', { class: 'btn', onclick: () => freeZ('front') }, 'Bring to front'),
+    el('button', { class: 'btn', onclick: () => freeZ('back') }, 'Send to back'),
+    el('button', { class: 'btn', onclick: freeDuplicate }, 'Duplicate'),
+    el('button', { class: 'btn danger', onclick: freeDelete }, 'Delete')));
+  out.push(sec);
+  return out;
+}
+function numBox(val, onchange) { return el('input', { type: 'number', class: 'numbox', value: Math.round(val), min: 100, step: 10, onchange: e => onchange(Math.round(+e.target.value || 0)) }); }
+function swatchRow(cur, onpick) {
+  return el('div', { class: 'field' }, el('label', {}, 'Colour'), el('div', { class: 'swatches' },
+    ...ARROW_COLORS.map(c => el('button', { class: 'sw' + (c.toLowerCase() === String(cur).toLowerCase() ? ' on' : ''), style: `background:${c}`, 'aria-label': `Colour ${c}`, onclick: () => onpick(c) }))));
+}
+
+// wire up
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$('#btnOpen').onclick = $('#btnOpen2').onclick = () => $('#fileIn').click();
+$('#fileIn').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+$('#btnDemo').onclick = loadDemo;
+$('#tplIn').onchange = e => { if (e.target.files[0]) openTemplate(e.target.files[0]); e.target.value = ''; };
+$('#selX').onchange = e => { e.target.blur(); S.view.x = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
+$('#selY').onchange = e => { e.target.blur(); S.view.y = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
+$('#btnSwap').onclick = () => { if (!S.view.y) return; [S.view.x, S.view.y] = [S.view.y, S.view.x]; S.view.sel = null; renderGateTab(); };
+document.querySelectorAll('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('#ptSize').oninput = e => { S.view.pt = +e.target.value; renderPlot(); };
+function savePlotPng() { const v = S.view, sel = v.sel; v.sel = null; renderPlot(); download(cv.toDataURL('image/png'), `${activeSample().name}_${popName(v.pop)}_${short(v.x)}${v.y ? '_' + short(v.y) : ''}.png`.replace(/[^\w.+-]+/g, '_')); v.sel = sel; renderPlot(); }
+$('#btnSchemePng').onclick = schemePng;
+$('#compOn').onchange = e => { S.compOn = e.target.checked; compChanged(true); };
+$('#btnCompFile').onclick = () => { if (S.fileSpill) { S.spill = JSON.parse(JSON.stringify(S.fileSpill)); compChanged(false); toast('Restored the matrix stored in the FCS file.'); } };
+$('#btnCompIdent').onclick = () => { const ch = spillChannels(); S.spill = { channels: ch, matrix: ch.map((_, i) => ch.map((__, j) => i === j ? 1 : 0)) }; compChanged(false); };
+$('#btnCompCsv').onclick = () => { const ch = S.spill.channels; const lines = [',' + ch.join(','), ...S.spill.matrix.map((r, i) => ch[i] + ',' + r.join(','))]; download(URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), 'spillover_matrix.csv'); };
+$('#btnCompute').onclick = computeFromControls;
+$('#pvX').onchange = $('#pvY').onchange = renderPreview;
+$('#statKind').onchange = renderStats;
+$('#btnCsv').onclick = statsCsv;
+$('#btnFcsExport').onclick = () => {
+  const s = activeSample(), idx = getPop(s, S.view.pop);
+  const bytes = Core.writeFCS(s.fcs, idx, getComp(s));
+  download(URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' })), `${s.name}_${popName(S.view.pop)}.fcs`.replace(/[^\w.+-]+/g, '_'));
+  toast(`Exported ${fmtInt(idx.length)} events from ${popName(S.view.pop)}${S.compOn ? ' (compensated values)' : ''}.`);
+};
+const dz = $('#dropZone');
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === 'drop' || e.target === document.documentElement) dz.classList.remove('over'); }));
+document.addEventListener('drop', e => { const fs = [...e.dataTransfer.files]; const tpl = fs.find(f => /\.json$/i.test(f.name)); const fcs = fs.filter(f => !/\.json$/i.test(f.name)); if (fcs.length) addFiles(fcs).then(() => tpl && openTemplate(tpl)); else if (tpl) openTemplate(tpl); });
+document.addEventListener('keydown', e => {
+  if (pendingName || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || S.tab !== 'gate' || !S.samples.length) return;
+  const k = e.key.toLowerCase(), map = { v: 'pointer', r: 'rect', p: 'poly', e: 'ellipse', i: 'interval', q: 'quad' };
+  if (map[k] && !e.metaKey && !e.ctrlKey) { const b = document.querySelector(`#tools button[data-tool="${map[k]}"]`); if (!b.disabled) setTool(map[k]); return; }
+  if (e.key === 'Escape') { if (draft) { draft = null; renderPlot(); } else { S.view.sel = null; renderGateTab(); } }
+  if (e.key === 'Enter' && draft && draft.type === 'poly') finishPoly();
+  if ((e.key === 'Backspace' || e.key === 'Delete')) {
+    if (draft && draft.type === 'poly') { draft.pts.pop(); if (!draft.pts.length) draft = null; renderPlot(); e.preventDefault(); }
+    else if (S.view.sel) { deleteGate(S.view.sel); e.preventDefault(); }
+  }
+});
+let rz = 0; window.addEventListener('resize', () => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { densityCache.clear(); renderAll(); }); });
+window.FW = { S, loadDemo, addSample, renderAll, getPop, switchTab, setTool, computeFromControls,
+  toPx: (rx, ry) => { const r = cv.getBoundingClientRect(); return [r.left + G.tx(tfn(S.view.x).f(rx)), r.top + (S.view.y ? G.ty(tfn(S.view.y).f(ry)) : G.mt + G.h / 2)]; } };
+
+// ---- file menu, projects and export wiring
+$('#btnFile').onclick = e => { e.stopPropagation(); toggleMenu(); };
+document.addEventListener('click', e => { if (!e.target.closest('.menuwrap')) toggleMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleMenu(false); });
+const menu = (id, fn) => { $(id).onclick = () => { toggleMenu(false); fn(); }; };
+menu('#miNew', () => {
+  if (S.dirty && !confirm('Start a new project? Changes that are not in a saved project file will be lost.')) return;
+  resetState(); S.tab = 'gate'; document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === 'gate'));
+  document.title = 'Flow Workbench'; renderAll();
+});
+menu('#miOpenProj', pickProject);
+menu('#miSaveProj', () => saveProject(false));
+menu('#miSaveProjAs', () => saveProject(true));
+menu('#miAddFcs', () => $('#fileIn').click());
+menu('#miOpenTpl', () => $('#tplIn').click());
+menu('#miSaveTpl', saveTemplate);
+$('#btnSaveProj').onclick = () => saveProject(false);
+$('#btnOpenProj2').onclick = pickProject;
+$('#expPreview').addEventListener('pointerdown', e => { if (E.layout === 'free') freePointerDown(e); });
+$('#expPreview').addEventListener('pointermove', e => { if (E.layout === 'free') freePointerMove(e); });
+$('#expPreview').addEventListener('pointerup', () => { if (E.layout === 'free') freePointerUp(); });
+$('#expPreview').addEventListener('dblclick', e => { if (E.layout === 'free') freeDblClick(e); });
+document.addEventListener('keydown', e => {
+  if (S.tab !== 'export' || E.layout !== 'free' || !freeSel) return;
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { freeDelete(); e.preventDefault(); }
+  else if (e.key === 'Escape') { freeSel = null; renderExport(); }
+  else if (e.key.startsWith('Arrow')) {
+    const it = freeById(freeSel), d = e.shiftKey ? 10 : 1;
+    const dx = (e.key === 'ArrowRight' ? d : e.key === 'ArrowLeft' ? -d : 0), dy = (e.key === 'ArrowDown' ? d : e.key === 'ArrowUp' ? -d : 0);
+    if (it.type === 'arrow') { it.x1 += dx; it.y1 += dy; it.x2 += dx; it.y2 += dy; } else { it.x += dx; it.y += dy; }
+    markDirty(); renderExportPreview(); e.preventDefault();
+  }
+});
+$('#projIn').onchange = e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; };
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.FW.saveProject = saveProject; window.FW.openProject = openProject; window.FW.buildFigure = buildFigure;
+window.FW.figureSvg = figureSvg; window.FW.E = E; window.FW.renderExport = renderExport; window.FW.SvgCtx = SvgCtx;
+
+renderAll();
+})();
+
+</script>
+</body>
+</html>
