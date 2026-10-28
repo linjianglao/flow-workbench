@@ -28,6 +28,10 @@ jobs:
       - name: Build
         run: python3 build.py
       - uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on from the workflow itself, so a fresh clone or fork
+          # deploys without anyone visiting Settings first.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
