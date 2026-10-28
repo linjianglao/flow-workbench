@@ -18,7 +18,7 @@ If the file is unpublished or otherwise sensitive, say so in the issue rather th
 ## Working on the code
 
 ```bash
-git clone https://github.com/USERNAME/flow-workbench.git
+git clone https://github.com/linjianglao/flow-workbench.git
 cd flow-workbench
 python3 build.py        # rebuild after any change in src/
 node tests/core.test.js # fast unit tests, no browser needed

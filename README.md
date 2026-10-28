@@ -8,7 +8,7 @@
 
 Flow Workbench covers the everyday flow cytometry workflow — compensation, transformation, interactive gating, population statistics and figure export — with no R, no Bioconductor, no XQuartz and no compiler. Everything lives in one `flow_workbench.html` file that opens in any modern browser.
 
-**[→ Open the live app](https://USERNAME.github.io/flow-workbench/)**  ·  **[Download the file](https://github.com/USERNAME/flow-workbench/releases/latest)**  ·  **[Development log](docs/DEVELOPMENT_LOG.md)**
+**[→ Open the live app](https://linjianglao.github.io/flow-workbench/)**  ·  **[Download the file](https://github.com/linjianglao/flow-workbench/releases/latest)**  ·  **[Development log](docs/DEVELOPMENT_LOG.md)**
 
 ![Gating view](docs/img/gating.png)
 
@@ -24,9 +24,9 @@ Your FCS files are parsed by JavaScript in your own browser. Nothing is uploaded
 
 ## Getting started
 
-**Use it online:** open <https://USERNAME.github.io/flow-workbench/> — nothing is installed, and your files still never leave your computer.
+**Use it online:** open <https://linjianglao.github.io/flow-workbench/> — nothing is installed, and your files still never leave your computer.
 
-**Use it offline:** download `flow_workbench.html` from the [latest release](https://github.com/USERNAME/flow-workbench/releases/latest) (or from `dist/` in this repository) and double-click it. It opens in your default browser and works with no network connection. To share it with a colleague, send them the file.
+**Use it offline:** download `flow_workbench.html` from the [latest release](https://github.com/linjianglao/flow-workbench/releases/latest) (or from `dist/` in this repository) and double-click it. It opens in your default browser and works with no network connection. To share it with a colleague, send them the file.
 
 Either way, click **Try with demo data** to explore, or **Add FCS files** to load your own.
 
@@ -177,7 +177,7 @@ tests/          Node unit tests and a Playwright end-to-end script
 ## Building from source
 
 ```bash
-git clone https://github.com/USERNAME/flow-workbench.git
+git clone https://github.com/linjianglao/flow-workbench.git
 cd flow-workbench
 python3 build.py          # writes dist/flow_workbench.html and docs/index.html
 ```
