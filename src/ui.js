@@ -141,11 +141,34 @@ async function addFiles(files) {
   if (problems.length) toast((added ? `Added ${added} file${added > 1 ? 's' : ''}. ` : '') + problems.join(' '), true);
   else if (added) toast(`Added ${added} file${added > 1 ? 's' : ''}.`);
 }
+/* The demo is two donors run on different days plus the compensation controls. Donor B's cells sit
+   well off donor A's on scatter, so the two donors need separate gating - which is what the groups
+   are there to carry. */
+function applyDemoGroups() {
+  S.groups = Core.demoGroups().map(g => ({ ...g, members: g.members.map(i => S.samples[i]).filter(Boolean).map(s => s.id) }));
+  S.activeGroup = S.groups[0].id;
+}
 function loadDemo() {
   resetState();
   Core.demoSet().forEach(fcs => addSample(fcs));
-  refreshAll();
-  toast('Demo loaded: 3 samples and 5 compensation controls. Start by gating cells on FSC-A vs SSC-A.');
+  applyDemoGroups();
+  S.view.pop = 'root'; S.view.sel = null;
+  invalidate({ comp: true }); refreshAll();
+  toast('Demo loaded: two donors of 3 samples each, grouped, plus 5 compensation controls. Draw a gate and it applies to every sample in the active group.');
+}
+function loadWorkedExample() {
+  resetState();
+  Core.demoSet().forEach(fcs => addSample(fcs));
+  applyDemoGroups();
+  const a = Core.demoAnalysis();
+  S.gates = a.gates.map(g => ({ ...g }));
+  S.nextId = S.gates.length + 1;
+  S.overrides = {};
+  a.overrides.forEach(o => { const s = S.samples[o.sample]; if (s) S.overrides[s.id + ':' + o.gate] = { pts: o.pts }; });
+  S.statSummary = true;
+  S.view.pop = 'root'; S.view.sel = null; S.view.x = 'FSC-A'; S.view.y = 'SSC-A';
+  invalidate({ comp: true }); refreshAll();
+  toast('Worked example loaded. Donor A and Donor B each carry their own gating tree, and Donor B stimulated has one gate nudged because that file drifted.');
 }
 
 // ------------------------------------------------------------ plotting ---
@@ -1025,6 +1048,7 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
 $('#btnOpen').onclick = $('#btnOpen2').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
 $('#btnDemo').onclick = loadDemo;
+$('#btnExample').onclick = loadWorkedExample;
 $('#tplIn').onchange = e => { if (e.target.files[0]) openTemplate(e.target.files[0]); e.target.value = ''; };
 $('#selX').onchange = e => { e.target.blur(); S.view.x = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
 $('#selY').onchange = e => { e.target.blur(); S.view.y = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
@@ -1105,7 +1129,7 @@ document.addEventListener('keydown', e => {
 $('#projIn').onchange = e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.FW.saveProject = saveProject; window.FW.openProject = openProject; window.FW.buildFigure = buildFigure;
-window.FW.dfs = dfs; window.FW.treeIn = treeIn; window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
+window.FW.dfs = dfs; window.FW.treeIn = treeIn; window.FW.loadWorkedExample = loadWorkedExample; window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
 window.FW.copyGatesTo = copyGatesTo; window.FW.toggleMember = toggleMember; window.FW.deleteGroup = deleteGroup;
 window.FW.effGate = effGate; window.FW.hasOverride = hasOverride; window.FW.clearOverride = clearOverride; window.FW.groupMembers = groupMembers;
 window.FW.figureSvg = figureSvg; window.FW.E = E; window.FW.renderExport = renderExport; window.FW.SvgCtx = SvgCtx;

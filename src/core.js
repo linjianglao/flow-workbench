@@ -433,17 +433,18 @@ const Core = (() => {
     const pos = (m, s) => Math.exp(Math.log(m) + s * R.n());
     const neg = () => 60 * R.n() + 20;
     for (let e = 0; e < N; e++) {
+      const dx = spec.fscShift || 0, dy = spec.sscShift || 0, br = spec.bright || 1;
       const u = R.u(); let fsc, ssc, cd3 = neg(), cd4 = neg(), cd8 = neg(), ld = pos(300, 0.5), doublet = false;
       if (u < spec.debris) { fsc = Math.abs(8000 + 9000 * R.n()); ssc = Math.abs(6000 + 8000 * R.n()); ld = pos(8000, 0.5); }
       else {
         const v = R.u();
         if (v < spec.lymph) {
-          fsc = 62000 + 7000 * R.n(); ssc = 18000 + 4000 * R.n();
+          fsc = 62000 + dx + 7000 * R.n(); ssc = 18000 + dy + 4000 * R.n();
           if (R.u() < spec.t) {
-            cd3 = pos(9000, 0.35); const w = R.u();
-            if (w < spec.cd4) cd4 = pos(12000, 0.3); else if (w < spec.cd4 + spec.cd8) cd8 = pos(20000, 0.35);
+            cd3 = pos(9000 * br, 0.35); const w = R.u();
+            if (w < spec.cd4) cd4 = pos(12000 * br, 0.3); else if (w < spec.cd4 + spec.cd8) cd8 = pos(20000 * br, 0.35);
           }
-        } else if (v < spec.lymph + 0.25) { fsc = 95000 + 10000 * R.n(); ssc = 60000 + 10000 * R.n(); cd4 = pos(1800, 0.4); }
+        } else if (v < spec.lymph + 0.25) { fsc = 95000 + dx + 10000 * R.n(); ssc = 60000 + dy + 10000 * R.n(); cd4 = pos(1800, 0.4); }
         else { fsc = 115000 + 12000 * R.n(); ssc = 150000 + 22000 * R.n(); }
         if (R.u() < spec.dead) ld = pos(9000, 0.4);
         if (R.u() < 0.05) doublet = true;
@@ -474,11 +475,19 @@ const Core = (() => {
     const kw = { $FIL: name + '.fcs', $SPILLOVER: spillStr, $CYT: 'Demo cytometer' };
     return { name, fileName: name + '.fcs', version: 'DEMO', N, params, cols, keywords: kw, spill: parseSpill(kw, params.map(p => p.name)) };
   }
+  /* Two donors run on different days: donor B's lymphocytes sit higher and wider on scatter and
+     stain slightly brighter, so a single gate cannot serve both. Each donor therefore needs its own
+     gating tree, which is exactly what a group is for. */
+  const DEMO_B = { fscShift: 20000, sscShift: 16000, bright: 1.35 };
   function demoSet() {
     return [
       demoSample('Donor A resting', 11, 40000, { debris: 0.12, lymph: 0.55, t: 0.72, cd4: 0.62, cd8: 0.3, dead: 0.06 }),
       demoSample('Donor A stimulated', 12, 40000, { debris: 0.18, lymph: 0.6, t: 0.75, cd4: 0.5, cd8: 0.42, dead: 0.14 }),
       demoSample('Donor A stim + inhibitor', 13, 40000, { debris: 0.2, lymph: 0.52, t: 0.7, cd4: 0.58, cd8: 0.33, dead: 0.25 }),
+      demoSample('Donor B resting', 31, 36000, { debris: 0.1, lymph: 0.58, t: 0.68, cd4: 0.55, cd8: 0.36, dead: 0.07, ...DEMO_B }),
+      // This file blasted: its lymphocytes grew past the group's gate, so it carries an override below.
+      demoSample('Donor B stimulated', 32, 36000, { debris: 0.16, lymph: 0.62, t: 0.71, cd4: 0.44, cd8: 0.48, dead: 0.16, ...DEMO_B, fscShift: 31000, sscShift: 25000 }),
+      demoSample('Donor B stim + inhibitor', 33, 36000, { debris: 0.19, lymph: 0.54, t: 0.66, cd4: 0.52, cd8: 0.38, dead: 0.27, ...DEMO_B }),
       demoControl('Unstained', 21, 15000, -1),
       demoControl('FITC single stain', 22, 15000, 0),
       demoControl('PE single stain', 23, 15000, 1),
@@ -486,11 +495,41 @@ const Core = (() => {
       demoControl('Pacific Blue single stain', 25, 15000, 3)
     ];
   }
+  /* Groups for the demo, by sample index. Loaded with the data so the panel is never empty. */
+  function demoGroups() {
+    return [
+      { id: 'G1', name: 'Donor A', color: '#0A73B8', members: [0, 1, 2] },
+      { id: 'G2', name: 'Donor B', color: '#D8342C', members: [3, 4, 5] },
+      { id: 'G3', name: 'Compensation controls', color: '#6D7A2A', members: [6, 7, 8, 9, 10] }
+    ];
+  }
+  /* A finished analysis over that data: one tree per donor, placed where that donor's cells actually
+     are, plus one gate nudged on a single file the way a real population shift would force. */
+  function demoAnalysis() {
+    const tree = (gid, sfx, dx, dy, cut) => [
+      { id: 'd1' + sfx, group: gid, name: 'Lymphocytes', parent: 'root', type: 'poly', x: 'FSC-A', y: 'SSC-A',
+        pts: [[42000 + dx, 5000 + dy], [84000 + dx, 5000 + dy], [88000 + dx, 31000 + dy], [60000 + dx, 36000 + dy], [40000 + dx, 27000 + dy]] },
+      { id: 'd2' + sfx, group: gid, name: 'Single cells', parent: 'd1' + sfx, type: 'rect', x: 'FSC-A', y: 'FSC-H',
+        pts: [[38000 + dx, 28000 + dx], [98000 + dx, 86000 + dx]] },
+      { id: 'd3' + sfx, group: gid, name: 'Live cells', parent: 'd2' + sfx, type: 'interval', x: 'Pacific Blue-A', y: null, pts: [[-200, 0], [2000, 0]] },
+      { id: 'd4' + sfx, group: gid, name: 'T cells', parent: 'd3' + sfx, type: 'interval', x: 'FITC-A', y: null, pts: [[cut, 0], [262144, 0]] },
+      ...['+-', '-+', '--', '++'].map((q, k) => ({
+        id: 'd5' + sfx + k, group: gid, name: ['CD4+ CD8\u2212', 'CD4\u2212 CD8+', 'CD4\u2212 CD8\u2212', 'CD4+ CD8+'][k],
+        group_: null, parent: 'd4' + sfx, type: 'quad', quadrant: q, quadGroup: 'dq' + sfx, x: 'PE-A', y: 'APC-A', pts: [[cut, cut * 1.6]] }))
+    ].map(g => { delete g.group_; return g; });
+    const A = tree('G1', 'a', 0, 0, 1500);
+    const B = tree('G2', 'b', 20000, 16000, 2000);
+    return {
+      gates: [...A, ...B],
+      // Donor B's stimulated file blasted: its lymphocytes sit larger still, so that one gate is widened.
+      overrides: [{ sample: 4, gate: 'd1b', pts: B[0].pts.map(([x, y]) => [x + 11000, y + 9000]) }]
+    };
+  }
 
   return {
     parseFCS, parseTextSegment, writeFCS, invert, compensate, quantile, quantiles, mean, stdev,
     makeLogicle, estimateLogicleW, logicleCfg, transformFns, defaultTransform, buildTransform, applyTransform, ticksFor,
-    fmtPow, fmtLinear, applyGate, pointInPoly, ellipsePoints, spilloverFromControls, demoSet, DEMO_SPILL, DEMO_FL
+    fmtPow, fmtLinear, applyGate, pointInPoly, ellipsePoints, spilloverFromControls, demoSet, demoGroups, demoAnalysis, DEMO_SPILL, DEMO_FL
   };
 })();
 if (typeof module !== 'undefined') module.exports = Core;

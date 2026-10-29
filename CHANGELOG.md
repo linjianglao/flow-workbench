@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Per-sample gate adjustment.** A switch on the selected gate chooses whether a drag edits the whole group or only the active sample. Sample-scoped edits are stored as overrides, leave the group's shape untouched, and are marked with a dot in the plot, the population tree and the sample list. Overrides reset one at a time or for a whole group.
 - **Group statistics.** The Statistics tab blocks rows by group and offers an optional `mean ± SD (n=…)` summary row per population. The CSV gained group, summary-flag, n, adjusted-flag and per-value SD columns.
 - Figure export and the gating scheme follow the active group.
+- **A grouped demo dataset.** The demo is now two donors of three samples each plus the compensation controls, arriving pre-grouped. Donor B was "run on a different day": its scatter sits ~20,000 FSC and ~16,000 SSC higher, so donor A's gate catches only 14% of it against 50% for donor B's own gate — one tree cannot serve both.
+- **Open worked example**, a second start option loading that data with a finished analysis: a gating tree per donor and one gate nudged on a file that drifted past its group's gate.
 
 ### Changed
 - Project files store groups, membership and overrides. A 1.0 project opens unchanged: its single tree becomes one group holding every sample.

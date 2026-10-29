@@ -43,7 +43,11 @@ async def main():
         await page.click("#btnDemo")
         await page.wait_for_timeout(600)
         n = await page.evaluate("FW.S.samples.length")
-        check("demo data loads 8 samples", n == 8, n)
+        check("demo data loads 11 samples", n == 11, n)
+        check("demo data arrives already grouped by donor",
+              await page.evaluate("JSON.stringify(FW.S.groups.map(g=>g.name)) === '[\"Donor A\",\"Donor B\",\"Compensation controls\"]'"),
+              await page.evaluate("JSON.stringify(FW.S.groups.map(g=>[g.name,g.members.length]))"))
+        check("the demo leaves the gating to you", await page.evaluate("FW.S.gates.length === 0"))
 
         px = lambda x, y: page.evaluate(f"FW.toPx({x},{y})")
 
@@ -112,8 +116,11 @@ async def main():
         async with page.expect_download() as dl:
             await page.click("#btnCsv")
         csv = pathlib.Path(await (await dl.value).path()).read_text()
-        check("statistics CSV has a row per population per sample",
-              len(csv.strip().splitlines()) == 1 + 8 * 8, len(csv.strip().splitlines()))
+        expected = await page.evaluate(
+            "FW.S.groups.reduce((n,g)=>n+g.members.length*FW.treeIn(g.id).length,0)")
+        check("statistics CSV has a row per population per group member",
+              len(csv.strip().splitlines()) == 1 + expected,
+              f"{len(csv.strip().splitlines())} lines, expected {1 + expected}")
 
         # population export as FCS
         async with page.expect_download() as dl:
@@ -152,18 +159,19 @@ async def main():
         # ---- groups (v1.1)
         await page.evaluate("()=>{FW.S.gates=[{id:'gg1',group:'G1',name:'Cells',parent:'root',type:'rect',x:'FSC-A',y:'SSC-A',pts:[[42000,6000],[88000,34000]]}];FW.S.nextId=2;FW.renderAll();}")
         await page.wait_for_timeout(400)
-        check("a default group holds every sample",
-              await page.evaluate("FW.S.groups.length === 1 && FW.S.groups[0].members.length === FW.S.samples.length"))
+        check("demo groups partition every sample",
+              await page.evaluate("(()=>{const m=new Set(FW.S.groups.flatMap(g=>g.members));return m.size===FW.S.samples.length;})()"))
 
         await page.evaluate("()=>{FW.addGroup('Second');}")
         await page.wait_for_timeout(300)
         check("a new group starts with an empty tree",
               await page.evaluate("FW.dfs().length === 1"), await page.evaluate("JSON.stringify(FW.dfs())"))
 
-        await page.evaluate("()=>{FW.copyGatesTo('G1','G2');}")
+        newGid = await page.evaluate("FW.S.groups[FW.S.groups.length-1].id")
+        await page.evaluate(f"()=>{{FW.copyGatesTo('G1','{newGid}');}}")
         await page.wait_for_timeout(400)
         check("copied gates get fresh ids so the trees stay independent",
-              await page.evaluate("(()=>{const ids=FW.S.gates.map(g=>g.id);return new Set(ids).size===ids.length && FW.S.gates.filter(g=>g.group==='G2').length===1;})()"))
+              await page.evaluate(f"(()=>{{const ids=FW.S.gates.map(g=>g.id);return new Set(ids).size===ids.length && FW.S.gates.filter(g=>g.group==='{newGid}').length===1;}})()"))
 
         await page.evaluate("()=>{FW.setActiveGroup('G1');FW.S.view.pop='root';}")
         await page.wait_for_timeout(300)
@@ -178,6 +186,7 @@ async def main():
         check("the group's own gate is left alone by an override",
               await page.evaluate("JSON.stringify(FW.S.gates.find(g=>g.id==='gg1').pts) === '[[42000,6000],[88000,34000]]'"))
 
+        before_groups = await page.evaluate("JSON.stringify(FW.S.groups.map(g=>[g.name,g.members.length]))")
         async with page.expect_download() as dl:
             await page.click("#btnSaveProj")
         gproj = tmp / "groups.fwproj"
@@ -187,11 +196,36 @@ async def main():
         await page3.goto(APP)
         await page3.set_input_files("#projIn", str(gproj))
         await page3.wait_for_timeout(2500)
-        check("groups and overrides survive a project round trip",
-              await page3.evaluate("FW.S.groups.length===2 && Object.keys(FW.S.overrides).length===1"),
-              await page3.evaluate("JSON.stringify({g:FW.S.groups.length,o:Object.keys(FW.S.overrides).length})"))
+        after_groups = await page3.evaluate("JSON.stringify(FW.S.groups.map(g=>[g.name,g.members.length]))")
+        check("groups and their membership survive a project round trip",
+              after_groups == before_groups, f"{before_groups} -> {after_groups}")
+        check("overrides survive a project round trip",
+              await page3.evaluate("Object.keys(FW.S.overrides).length === 1"),
+              await page3.evaluate("Object.keys(FW.S.overrides).length"))
         reopened = json.loads(await page3.evaluate("JSON.stringify(FW.S.samples.slice(0,3).map(s=>FW.getPop(s,'gg1').length))"))
         check("adjusted counts reopen unchanged", reopened == nudged, f"{nudged} vs {reopened}")
+
+        # ---- worked example
+        page4 = await ctx.new_page()
+        page4.on("pageerror", lambda e: errors.append("example: " + str(e)))
+        await page4.goto(APP)
+        await page4.click("#btnExample")
+        await page4.wait_for_timeout(2500)
+        check("worked example loads two gated donor groups",
+              await page4.evaluate("FW.S.groups.length===3 && FW.S.gates.filter(g=>g.group==='G1').length===8 && FW.S.gates.filter(g=>g.group==='G2').length===8"),
+              await page4.evaluate("JSON.stringify(FW.S.groups.map(g=>[g.name,FW.S.gates.filter(x=>x.group===g.id).length]))"))
+        check("worked example ships one adjusted sample",
+              await page4.evaluate("Object.keys(FW.S.overrides).length === 1"))
+        yields = json.loads(await page4.evaluate(
+            "JSON.stringify(FW.groupMembers(FW.S.groups[0]).map(s=>FW.getPop(s,'d1a').length/s.fcs.N))"))
+        check("every donor A file lands in its group's lymphocyte gate",
+              all(0.3 < y < 0.65 for y in yields), [round(y, 3) for y in yields])
+        await page4.evaluate("()=>{FW.setActiveGroup('G2');}")
+        await page4.wait_for_timeout(400)
+        yields_b = json.loads(await page4.evaluate(
+            "JSON.stringify(FW.groupMembers(FW.S.groups[1]).map(s=>FW.getPop(s,'d1b').length/s.fcs.N))"))
+        check("every donor B file lands in its own group's gate",
+              all(0.3 < y < 0.65 for y in yields_b), [round(y, 3) for y in yields_b])
 
         check("no uncaught JavaScript errors", not errors, errors[:3])
         await browser.close()

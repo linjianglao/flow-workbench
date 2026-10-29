@@ -143,6 +143,9 @@ The free-form canvas is original code. Direct-manipulation editing is a general 
 | 31 | Extended project files with groups, membership and overrides, storing sample references as indices because session-local ids are not stable across a reload. A 1.0 project loads by folding its single tree into one group. |
 | 32 | Added seven end-to-end tests covering group isolation, id reissue on copy, override locality, and a round trip through a project file. |
 
+| 33 | Rebuilt the demo dataset around two donors with offset scatter and added a worked-example loader, so the feature can be seen rather than described. Tuned the offset by measurement: at +15,000/+11,000 the wrong gate still caught 39%, which taught nothing; at +24,000/+20,000 it caught 2%, which looked like a different cell type. +20,000/+16,000 gives 14% against 50% — unmistakable but still a plausible day-to-day shift. |
+| 34 | Gave one demo file a further drift so its override earns its place: the group gate catches 45% of it, the nudged gate 49%, and that same nudged gate fits its siblings *worse* — which is the definition of a per-sample fix rather than a bad group gate. |
+
 Two design notes worth recording. Because a sample can be in two groups that gate it differently, **a population is the pair (group, gate)** rather than a gate alone, and the active group resolves the ambiguity everywhere it matters. Overrides are stored separately from gates rather than as modified copies, so renaming or reshaping a group's gate does not strand the per-sample adjustments hanging off it, and removing a sample from a group discards only that sample's overrides for that group's gates.
 
 ## 4. Testing

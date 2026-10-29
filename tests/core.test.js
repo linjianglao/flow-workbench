@@ -58,8 +58,13 @@ section('Compensation');
   const set = Core.demoSet();
   const ctrlNames = Core.DEMO_FL;
   const colsOf = s => Object.fromEntries(s.params.map((p, i) => [p.name, s.cols[i]]));
-  const controls = set.slice(4).map((s, k) => ({ primary: ctrlNames[k], cols: colsOf(s) }));
-  const res = Core.spilloverFromControls(ctrlNames, controls, { cols: colsOf(set[3]) });
+  // Find the controls by name: their position in demoSet() is not part of the contract.
+  const byName = n => set.find(s => s.name === n);
+  const singles = ['FITC single stain', 'PE single stain', 'APC single stain', 'Pacific Blue single stain'];
+  const controls = singles.map((n, k) => ({ primary: ctrlNames[k], cols: colsOf(byName(n)) }));
+  ok('demo set carries an unstained and four single-stain controls',
+     !!byName('Unstained') && singles.every(byName));
+  const res = Core.spilloverFromControls(ctrlNames, controls, { cols: colsOf(byName('Unstained')) });
   let worst = 0;
   res.matrix.forEach((row, i) => row.forEach((v, j) => { worst = Math.max(worst, Math.abs(v - Core.DEMO_SPILL[i][j])); }));
   ok('recovers the known spillover matrix within 0.005', worst < 0.005, `worst abs err ${worst.toFixed(5)}`);
@@ -134,6 +139,46 @@ section('Axis ticks');
   ok('log axis labels are powers of ten', log.major.every(t => /^10|^1$|^0$/.test(t.label)), log.major.map(t => t.label).join(' '));
   ok('number formatting is compact', Core.fmtLinear(50000) === '50K' && Core.fmtLinear(1500000) === '1.5M',
      `${Core.fmtLinear(50000)} ${Core.fmtLinear(1500000)}`);
+}
+
+// ------------------------------------------------------- grouped demo ---
+section('Grouped demo and worked example');
+{
+  const set = Core.demoSet(), groups = Core.demoGroups(), { gates, overrides } = Core.demoAnalysis();
+  ok('every group member points at a real sample', groups.every(g => g.members.every(i => set[i])));
+  const covered = new Set(groups.flatMap(g => g.members));
+  ok('every demo sample belongs to a group', set.every((_, i) => covered.has(i)), `${covered.size} of ${set.length}`);
+  ok('each donor group gets its own tree', ['G1', 'G2'].every(id => gates.filter(g => g.group === id).length === 8));
+  ok('gate ids are unique across groups', new Set(gates.map(g => g.id)).size === gates.length);
+  const ids = new Set(gates.map(g => g.id));
+  ok('every parent link resolves inside its own group',
+     gates.every(g => g.parent === 'root' || (ids.has(g.parent) && gates.find(x => x.id === g.parent).group === g.group)));
+  ok('the override names a real sample and a real gate',
+     overrides.every(o => set[o.sample] && ids.has(o.gate)));
+
+  // The two donors must genuinely need separate gates, or the demo teaches nothing.
+  const ref = set[0], tf = {};
+  ref.params.map(p => p.name).forEach(ch => {
+    tf[ch] = Core.defaultTransform(ch, Core.compensate(ref, ref.spill)[ref.params.findIndex(p => p.name === ch)], 262144);
+  });
+  const frac = (smp, g) => {
+    const cols = Core.compensate(smp, smp.spill), col = ch => cols[smp.params.findIndex(p => p.name === ch)];
+    const all = Int32Array.from({ length: smp.N }, (_, i) => i);
+    return Core.applyGate(g, Core.applyTransform(tf[g.x], col(g.x)), Core.applyTransform(tf[g.y], col(g.y)),
+      Core.transformFns(tf[g.x]), Core.transformFns(tf[g.y]), all).length / smp.N;
+  };
+  const lymphA = gates.find(g => g.id === 'd1a'), lymphB = gates.find(g => g.id === 'd1b');
+  const aOnA = frac(set[0], lymphA), aOnB = frac(set[3], lymphA), bOnB = frac(set[3], lymphB);
+  ok('donor A gate fits donor A', aOnA > 0.35 && aOnA < 0.6, aOnA.toFixed(3));
+  ok('donor B gate fits donor B', bOnB > 0.35 && bOnB < 0.6, bOnB.toFixed(3));
+  ok('donor A gate clearly misses donor B, so the groups are needed', aOnB < bOnB * 0.5, `${aOnB.toFixed(3)} vs ${bOnB.toFixed(3)}`);
+
+  const drifted = set[overrides[0].sample];
+  const nudged = { ...lymphB, pts: overrides[0].pts };
+  ok('the override recovers cells the group gate misses on the drifted file',
+     frac(drifted, nudged) > frac(drifted, lymphB), `${frac(drifted, lymphB).toFixed(3)} -> ${frac(drifted, nudged).toFixed(3)}`);
+  ok('that override is specific to its file, not a better group gate',
+     frac(set[3], nudged) < frac(set[3], lymphB), 'it should fit the other donor B files worse');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

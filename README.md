@@ -28,7 +28,11 @@ Your FCS files are parsed by JavaScript in your own browser. Nothing is uploaded
 
 **Use it offline:** download `flow_workbench.html` from the [latest release](https://github.com/linjianglao/flow-workbench/releases/latest) (or from `dist/` in this repository) and double-click it. It opens in your default browser and works with no network connection. To share it with a colleague, send them the file.
 
-Either way, click **Try with demo data** to explore, or **Add FCS files** to load your own.
+Either way, pick one of three starting points:
+
+- **Try with demo data** — two donors of three samples each, already grouped, plus five compensation controls. No gates, so you can draw the first one and watch it apply across the group.
+- **Open worked example** — the same data with a finished analysis: a separate gating tree per donor, and one gate nudged on a file that drifted.
+- **Add FCS files** — your own data.
 
 Chrome, Edge, Safari and Firefox all work. Chrome and Edge additionally let you save a project straight back to the same file rather than downloading a new copy each time.
 
@@ -44,6 +48,14 @@ Create more groups when one session holds files that need different treatment �
 - **Copy gating →** duplicates one group's whole tree into another. The copy gets fresh gate ids, so editing one tree never moves the other.
 - **Per-sample adjustment.** Real populations shift between files. Select a gate and the inspector offers a switch: dragging edits *all of the group*, or *only this sample*. A sample-scoped drag stores an override for that file alone, leaves the group's own shape untouched, and marks the gate with a dot wherever it appears. **Reset to group shape** discards one override; **Reset adjusted** in the Groups panel discards every override in the group.
 - **Statistics are reported per group**, with an optional `mean ± SD (n=…)` summary row for each population. A sample in two groups appears under both, measured against each group's gates.
+
+### Seeing it work
+
+![Worked example](docs/img/groups-example.png)
+
+**Open worked example** on the start screen loads the case groups are built for. Donor A and donor B were run on different days, so donor B's lymphocytes sit about 20,000 FSC and 16,000 SSC higher. Donor A's gate catches 46% of donor A but only 14% of donor B, while donor B's own gate catches 50% — one tree genuinely cannot serve both.
+
+One file goes further: *Donor B stimulated* blasted, so its lymphocytes grew past even its own group's gate, which catches 45% of it against 50% for its siblings. That file carries an override recovering it to 49%, marked with a dot in the plot, the tree and the sample list. The same override applied to the other donor B files would fit them *worse*, which is why it is a per-sample adjustment and not a correction to the group.
 
 ## The workflow
 
