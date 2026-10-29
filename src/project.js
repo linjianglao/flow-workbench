@@ -18,7 +18,8 @@ function renderProjName() {
 
 function resetState() {
   Object.assign(S, { samples: [], active: -1, channels: [], stains: {}, ranges: {}, transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false,
-    gates: [], nextId: 1, ctrl: {}, overlays: new Set(), statChans: null, projectName: null, dirty: false });
+    gates: [], nextId: 1, ctrl: {}, overlays: new Set(), statChans: null, projectName: null, dirty: false,
+    groups: [], activeGroup: null, overrides: {}, statGroup: 'all', statSummary: false, gateEditScope: 'group' });
   S.view = { x: null, y: null, pop: 'root', tool: 'pointer', sel: null, pt: 2 };
   densityCache.clear(); S.version++; projHandle = null;
 }
@@ -41,6 +42,13 @@ async function buildProject() {
     channels: S.channels, transforms: S.transforms,
     compensation: { apply: S.compOn, spillover: S.spill, fromFile: S.fileSpill },
     gates: S.gates, nextId: S.nextId,
+    groups: S.groups.map(g => ({ ...g, members: g.members.map(id => S.samples.findIndex(s => s.id === id)).filter(i => i >= 0) })),
+    activeGroup: S.activeGroup,
+    overrides: Object.entries(S.overrides).map(([k, v]) => {
+      const [sid, gid] = k.split(':');
+      return { sample: S.samples.findIndex(s => String(s.id) === sid), gate: gid, pts: v.pts };
+    }).filter(o => o.sample >= 0),
+    statGroup: S.statGroup, statSummary: S.statSummary,
     view: { x: S.view.x, y: S.view.y, pop: S.view.pop, pt: S.view.pt }, active: S.active, tab: S.tab,
     overlays: [...S.overlays].map(id => S.samples.findIndex(s => s.id === id)).filter(i => i >= 0),
     statChans: S.statChans, statKind: $('#statKind').value, exportSettings: exportSettingsForSave()
@@ -114,6 +122,18 @@ async function openProject(file, handle = null) {
   const comp = P.compensation || {};
   S.spill = comp.spillover || null; S.fileSpill = comp.fromFile || S.fileSpill; S.compOn = !!comp.apply && !!S.spill;
   S.gates = P.gates || []; S.nextId = P.nextId || (S.gates.length + 1);
+  if (P.groups && P.groups.length) {
+    S.groups = P.groups.map(g => ({ ...g, members: g.members.map(i => S.samples[i]).filter(Boolean).map(s => s.id) }));
+    S.activeGroup = S.groups.some(g => g.id === P.activeGroup) ? P.activeGroup : S.groups[0].id;
+  } else {
+    // A 1.0 project has no groups: fold its single tree into one group holding every sample.
+    S.groups = [{ id: 'G1', name: 'All samples', color: GROUP_COLORS[0], members: S.samples.map(s => s.id) }];
+    S.activeGroup = 'G1';
+    S.gates.forEach(g => { if (!g.group) g.group = 'G1'; });
+  }
+  S.overrides = {};
+  (P.overrides || []).forEach(o => { const s = S.samples[o.sample]; if (s && gateById(o.gate)) S.overrides[s.id + ':' + o.gate] = { pts: o.pts }; });
+  S.statGroup = P.statGroup || 'all'; S.statSummary = !!P.statSummary;
   const v = P.view || {};
   if (S.channels.includes(v.x)) S.view.x = v.x;
   if (v.y === '' || S.channels.includes(v.y)) S.view.y = v.y;

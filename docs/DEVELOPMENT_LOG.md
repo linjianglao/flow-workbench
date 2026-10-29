@@ -131,6 +131,20 @@ The free-form canvas is original code. Direct-manipulation editing is a general 
 
 ---
 
+### Session 4 — sample groups (v1.1)
+
+| Step | What happened |
+|---|---|
+| 26 | Added a group model in `src/groups.js`: groups own their gates via `gate.group`, membership is a list of sample ids, and a sample may belong to several groups. |
+| 27 | Routed `children`, the tree walk and `getPop` through the active group, so the population tree, the plot, the scheme and the export all follow whichever group is selected. |
+| 28 | Added per-sample overrides keyed by sample and gate. `effGate` resolves the shape a sample actually uses; `editTarget` decides whether a drag writes to the group's gate or to that sample's override. |
+| 29 | Made quadrant gates move their four arms together in whichever scope is being edited, since all four share one centre. |
+| 30 | Rewrote the statistics builder to iterate groups x members x that group's tree, with optional per-group mean +/- SD rows, and widened the CSV accordingly. |
+| 31 | Extended project files with groups, membership and overrides, storing sample references as indices because session-local ids are not stable across a reload. A 1.0 project loads by folding its single tree into one group. |
+| 32 | Added seven end-to-end tests covering group isolation, id reissue on copy, override locality, and a round trip through a project file. |
+
+Two design notes worth recording. Because a sample can be in two groups that gate it differently, **a population is the pair (group, gate)** rather than a gate alone, and the active group resolves the ambiguity everywhere it matters. Overrides are stored separately from gates rather than as modified copies, so renaming or reshaping a group's gate does not strand the per-sample adjustments hanging off it, and removing a sample from a group discards only that sample's overrides for that group's gates.
+
 ## 4. Testing
 
 **Reference comparison.** The parser was checked against `flowio` (Python, BSD-3-Clause) on nine FCS files spanning FCS 2.0/3.0/3.1, integer/float data types, both byte orders, variable bit widths, log-amplified channels, offset discrepancies and a multi-dataset LMD file. First event, last event and per-channel means were compared. Float files matched exactly; the largest disagreement anywhere was 3 × 10⁻⁸ relative, from float32 rounding. Log-amplified integer channels differ by design, since the tool converts `$PnE` channels to linear scale on read.
@@ -156,6 +170,7 @@ ui.js         955 lines   rendering, interaction, sidebar, four original tabs
 svgctx.js      79 lines   Canvas-2D-compatible SVG recorder
 project.js    140 lines   .fwproj save/open, dirty tracking, File menu
 export.js     290 lines   figure layouts, preview, PNG/SVG/PDF output
+groups.js     188 lines   group model, membership, per-sample gate overrides
 free.js       277 lines   free-form canvas: item model, editing, annotations
 build.py                  inlines the above into flow_workbench.html
 ```

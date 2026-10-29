@@ -64,7 +64,8 @@ const gateById = id => S.gates.find(g => g.id === id);
 function getPop(s, id) {
   if (id === 'root') return s.all;
   if (s._pops.has(id)) return s._pops.get(id);
-  const g = gateById(id); if (!g) return new Int32Array(0);
+  const base = gateById(id); if (!base) return new Int32Array(0);
+  const g = effGate(s, base);
   const parent = getPop(s, g.parent);
   const idx = Core.applyGate(g, getT(s, g.x), g.y ? getT(s, g.y) : null, tfn(g.x), g.y ? tfn(g.y) : null, parent);
   s._pops.set(id, idx); return idx;
@@ -78,9 +79,16 @@ function invalidate({ comp = false, channel = null } = {}) {
     s._pops.clear();
   });
 }
-function children(id) { return S.gates.filter(g => g.parent === id); }
-function dfs(id = 'root', depth = 0, out = []) { out.push({ id, depth }); children(id).forEach(g => dfs(g.id, depth + 1, out)); return out; }
-function descendants(id) { return dfs(id).slice(1).map(d => d.id); }
+/* Gates belong to exactly one group, so the tree you see is the active group's tree. */
+function childrenIn(id, gid) { return S.gates.filter(g => g.parent === id && g.group === gid); }
+function children(id) { return childrenIn(id, S.activeGroup); }
+function treeIn(gid, id = 'root', depth = 0, out = []) {
+  out.push({ id, depth });
+  childrenIn(id, gid).forEach(g => treeIn(gid, g.id, depth + 1, out));
+  return out;
+}
+function dfs() { return treeIn(S.activeGroup); }
+function descendants(id) { const g = gateById(id); return treeIn(g ? g.group : S.activeGroup, id).slice(1).map(d => d.id); }
 
 // ------------------------------------------------------------ loading ---
 function addSample(fcs, bytes) {
@@ -96,6 +104,7 @@ function addSample(fcs, bytes) {
   while (S.samples.some(s => s.name === name)) name = `${fcs.name} (${k++})`;
   const s = { id: nextSampleId++, name, fcs, bytes: bytes || null, idx: Object.fromEntries(names.map((n, i) => [n, i])), _comp: null, _t: {}, _pops: new Map(), all: Int32Array.from({ length: fcs.N }, (_, i) => i) };
   S.samples.push(s);
+  if (S.groups.length) { const ag = activeGroup(); if (ag) ag.members.push(s.id); }
   if (!S.spill && fcs.spill && fcs.spill.channels.every(c => names.includes(c))) {
     S.fileSpill = JSON.parse(JSON.stringify(fcs.spill)); S.spill = JSON.parse(JSON.stringify(fcs.spill)); S.compOn = true;
     S.samples.forEach(x => { x._comp = null; x._t = {}; x._pops.clear(); });
@@ -108,6 +117,8 @@ function addSample(fcs, bytes) {
     S.view.y = find(/^SSC-A$/i) || find(/^SSC/i) || find(/^SS/i) || S.channels[1] || '';
   }
   guessControl(s);
+  ensureGroups();
+  if (!activeGroup().members.includes(s.id)) activeGroup().members.push(s.id);
   return true;
 }
 function guessControl(s) {
@@ -280,7 +291,7 @@ function paintPlot(ctx, spec, cssW, cssH) {
   }
   // gates
   ctx.save(); ctx.beginPath(); ctx.rect(g.ml - 1, g.mt - 1, g.w + 2, g.h + 2); ctx.clip();
-  (spec.gates || []).forEach(o => drawGate(ctx, g, o.gate, spec.pct === false ? null : o.pct, o.selected, fs, spec.labels !== false));
+  (spec.gates || []).forEach(o => drawGate(ctx, g, o.gate, spec.pct === false ? null : o.pct, o.selected, fs, spec.labels !== false, o.adjusted));
   if (spec.draft) drawDraft(ctx, g, spec.draft);
   ctx.restore();
   // legend goes last so gate labels can never sit on top of it
@@ -346,6 +357,14 @@ function handlesT(gate) {
   if (gate.type === 'interval') return gate.pts.map(p => [fx.f(p[0]), null]);
   return gate.pts.map(p => [fx.f(p[0]), fy.f(p[1])]);
 }
+/* The four arms of a quadrant share one centre. When a single sample is being adjusted the
+   override objects move together; otherwise the group's own gates do. */
+function quadTargets(gate) {
+  const arms = S.gates.filter(q => q.quadGroup === gate.quadGroup);
+  if (!gate._ov) return arms;
+  const s = S.samples.find(x => x.id === gate._ov);
+  return arms.map(q => editTarget(s, q));
+}
 function setHandle(gate, h, t) {
   const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
   const rx = fx.inv(t[0]), ry = fy ? fy.inv(t[1]) : 0;
@@ -354,7 +373,7 @@ function setHandle(gate, h, t) {
     if (h === 0) P[0] = [rx, ry]; else if (h === 2) P[1] = [rx, ry];
     else if (h === 1) { P[1][0] = rx; P[0][1] = ry; } else { P[0][0] = rx; P[1][1] = ry; }
   } else if (gate.type === 'interval') gate.pts[h] = [rx, 0];
-  else if (gate.type === 'quad') S.gates.filter(q => q.quadGroup === gate.quadGroup).forEach(q => { q.pts = [[rx, ry]]; });
+  else if (gate.type === 'quad') quadTargets(gate).forEach(q => { q.pts = [[rx, ry]]; });
   else if (gate.type === 'ellipse' && h === 0) { // moving centre drags the whole ellipse
     const c = [fx.f(gate.pts[0][0]), fy.f(gate.pts[0][1])], d = [t[0] - c[0], t[1] - c[1]];
     gate.pts = gate.pts.map(p => [fx.inv(fx.f(p[0]) + d[0]), fy.inv(fy.f(p[1]) + d[1])]);
@@ -363,7 +382,7 @@ function setHandle(gate, h, t) {
 function moveGate(gate, orig, d) {
   const fx = tfn(gate.x), fy = gate.y ? tfn(gate.y) : null;
   const mv = pts => pts.map(p => [fx.inv(fx.f(p[0]) + d[0]), fy ? fy.inv(fy.f(p[1]) + d[1]) : 0]);
-  if (gate.type === 'quad') { const np = mv(orig); S.gates.filter(q => q.quadGroup === gate.quadGroup).forEach(q => { q.pts = np.map(p => p.slice()); }); }
+  if (gate.type === 'quad') { const np = mv(orig); quadTargets(gate).forEach(q => { q.pts = np.map(p => p.slice()); }); }
   else gate.pts = mv(orig);
 }
 function labelPos(gate, g) {
@@ -378,7 +397,7 @@ function labelPos(gate, g) {
   const y = g.ty(yy) - 11;
   return { x: g.tx(cx / s.length), y: y < g.mt + 12 ? g.ty(s.reduce((a, p) => a + p[1], 0) / s.length) : y, align: 'center' };
 }
-function drawGate(ctx, g, gate, pct, selected, fs, showLabel = true) {
+function drawGate(ctx, g, gate, pct, selected, fs, showLabel = true, adjusted = false) {
   const s = shapeT(gate);
   ctx.lineWidth = selected ? 2.2 : 1.6; ctx.strokeStyle = selected ? '#0A73B8' : '#16212A';
   ctx.beginPath();
@@ -394,7 +413,7 @@ function drawGate(ctx, g, gate, pct, selected, fs, showLabel = true) {
     ctx.closePath(); ctx.stroke();
     if (selected) { ctx.fillStyle = 'rgba(10,115,184,.07)'; ctx.fill(); }
   }
-  if (showLabel) drawGateLabel(ctx, g, gate, pct, selected, fs);
+  if (showLabel) drawGateLabel(ctx, g, gate, pct, selected, fs, adjusted);
   if (selected) {
     handlesT(gate).forEach(p => {
       const x = g.tx(p[0]), y = p[1] == null ? g.mt + 26 : g.ty(p[1]);
@@ -403,9 +422,9 @@ function drawGate(ctx, g, gate, pct, selected, fs, showLabel = true) {
     });
   }
 }
-function drawGateLabel(ctx, g, gate, pct, selected, fs) {
+function drawGateLabel(ctx, g, gate, pct, selected, fs, adjusted = false) {
   const lp = labelPos(gate, g);
-  const txt = `${gate.name}${pct != null && isFinite(pct) ? '  ' + fmtPct(pct) : ''}`;
+  const txt = `${gate.name}${adjusted ? ' \u2022' : ''}${pct != null && isFinite(pct) ? '  ' + fmtPct(pct) : ''}`;
   ctx.font = `600 ${fs}px ${FONT}`;
   const w = ctx.measureText(txt).width + 12, h = fs + 8;
   let x0 = lp.align === 'center' ? lp.x - w / 2 : lp.align === 'right' ? lp.x - w : lp.x;
@@ -448,7 +467,7 @@ let G = null, drag = null, draft = null, hoverT = null, pendingName = false;
 
 function plotGates() {
   const v = S.view, hist = !v.y;
-  return S.gates.filter(g => g.parent === v.pop && g.x === v.x && (hist ? g.type === 'interval' : (g.type !== 'interval' && g.y === v.y)));
+  return S.gates.filter(g => g.group === S.activeGroup && g.parent === v.pop && g.x === v.x && (hist ? g.type === 'interval' : (g.type !== 'interval' && g.y === v.y)));
 }
 function plotSize() {
   const box = $('#plotBox'), w = box.clientWidth, h = Math.max(360, window.innerHeight - box.getBoundingClientRect().top - 40);
@@ -459,18 +478,19 @@ function renderPlot() {
   const s = activeSample(); if (!s) return;
   const v = S.view, [w, h] = plotSize();
   const pop = getPop(s, v.pop), parentN = pop.length;
-  const gates = plotGates().map(g => ({ gate: g, pct: parentN ? getPop(s, g.id).length / parentN * 100 : 0, selected: v.sel === g.id }));
+  const gates = plotGates().map(g => ({ gate: effGate(s, g), pct: parentN ? getPop(s, g.id).length / parentN * 100 : 0, selected: v.sel === g.id, adjusted: hasOverride(s, g) }));
   const overlays = !v.y ? [...S.overlays].map((id, k) => { const o = S.samples.find(x => x.id === id); return o && o !== s ? { xT: getT(o, v.x), idx: getPop(o, v.pop), color: OVERLAY_COLORS[k % OVERLAY_COLORS.length] } : null; }).filter(Boolean) : [];
   G = drawPlot(cv, {
     xch: v.x, ych: v.y || null, xT: getT(s, v.x), yT: v.y ? getT(s, v.y) : null, idx: pop, gates, draft, overlays, pt: v.pt,
     title: popName(v.pop), subtitle: `${fmtInt(parentN)} events`,
-    cacheKey: `${s.id}|${v.pop}|${v.x}|${v.y}|${w}|${h}|${v.pt}|${S.version}`
+    cacheKey: `${s.id}|${S.activeGroup}|${v.pop}|${v.x}|${v.y}|${w}|${h}|${v.pt}|${S.version}`
   }, w, h);
   renderStatus();
 }
 function renderStatus() {
   const s = activeSample(); if (!s) return;
   const parts = [el('span', {}, 'Sample ', el('b', {}, s.name))];
+  if (!inActiveGroup(s)) parts.push(el('span', { class: 'warn' }, `not in ${activeGroup().name} — showing that group's gates anyway`));
   if (hoverT && G) {
     const fx = tfn(S.view.x); parts.push(el('span', {}, `${short(S.view.x)} `, el('b', {}, fmtNum(fx.inv(hoverT[0])))));
     if (S.view.y) parts.push(el('span', {}, `${short(S.view.y)} `, el('b', {}, fmtNum(tfn(S.view.y).inv(hoverT[1])))));
@@ -502,6 +522,7 @@ function renderInspector() {
     el('span', { class: 'gname' }, g.name), el('span', { class: 'scount' }, parentN ? fmtPct(getPop(s, g.id).length / parentN * 100) : ''))));
   $('#gateHint').classList.toggle('hidden', gs.length > 0);
   const sel = gateById(S.view.sel), btns = $('#gateBtns'); btns.replaceChildren();
+  const scope = $('#scopeBox'); if (scope) scope.replaceChildren(...[sel && gs.includes(sel) ? editScopeControl() : null].filter(Boolean));
   if (sel && gs.includes(sel)) {
     btns.append(el('button', { class: 'btn', onclick: () => { S.view.pop = sel.id; S.view.sel = null; renderGateTab(); renderTree(); } }, 'Plot this population'),
       el('button', { class: 'btn', onclick: e => renameGate(sel, e.target) }, 'Rename'),
@@ -576,17 +597,17 @@ function snap(t, r) { const span = r[1] - r[0]; if (t > r[1] - 0.012 * span) ret
 const snapT = t => [snap(t[0], G.xr), G.hist ? 0 : snap(t[1], G.yr)];
 function hitHandle(px, py) {
   const sel = gateById(S.view.sel); if (!sel || !plotGates().includes(sel)) return -1;
-  const hs = handlesT(sel);
+  const hs = handlesT(effGate(activeSample(), sel));
   for (let i = 0; i < hs.length; i++) { const x = G.tx(hs[i][0]), y = hs[i][1] == null ? G.mt + 26 : G.ty(hs[i][1]); if (Math.abs(x - px) < 8 && Math.abs(y - py) < 8) return i; }
   return -1;
 }
 function hitGate(t) {
-  const gs = plotGates().slice().reverse();
-  for (const g of gs) {
-    const s = shapeT(g);
-    if (g.type === 'interval') { const a = Math.min(s[0][0], s[1][0]), b = Math.max(s[0][0], s[1][0]); if (t[0] >= a && t[0] <= b) return g; }
-    else if (g.type === 'quad') { const q = (t[0] > s[0][0] ? '+' : '-') + (t[1] > s[0][1] ? '+' : '-'); if (g.quadrant === q) return g; }
-    else if (Core.pointInPoly(t[0], t[1], s.map(p => p[0]), s.map(p => p[1]))) return g;
+  const sm = activeSample(), gs = plotGates().slice().reverse();
+  for (const base of gs) {
+    const g = effGate(sm, base), s = shapeT(g);
+    if (g.type === 'interval') { const a = Math.min(s[0][0], s[1][0]), b = Math.max(s[0][0], s[1][0]); if (t[0] >= a && t[0] <= b) return base; }
+    else if (g.type === 'quad') { const q = (t[0] > s[0][0] ? '+' : '-') + (t[1] > s[0][1] ? '+' : '-'); if (g.quadrant === q) return base; }
+    else if (Core.pointInPoly(t[0], t[1], s.map(p => p[0]), s.map(p => p[1]))) return base;
   }
   return null;
 }
@@ -595,11 +616,12 @@ cv.addEventListener('pointerdown', e => {
   const [px, py] = evPos(e), t = G.fromPx(px, py), tool = S.view.tool;
   cv.setPointerCapture(e.pointerId);
   if (tool === 'pointer') {
+    const sm = activeSample();
     const h = hitHandle(px, py);
-    if (h >= 0) { drag = { mode: 'handle', h, gate: gateById(S.view.sel) }; return; }
+    if (h >= 0) { drag = { mode: 'handle', h, gate: editTarget(sm, gateById(S.view.sel)) }; return; }
     const g = hitGate(t);
     S.view.sel = g ? g.id : null;
-    if (g) drag = { mode: 'move', gate: g, start: t, orig: g.pts.map(p => p.slice()), moved: false };
+    if (g) { const tgt = editTarget(sm, g); drag = { mode: 'move', gate: tgt, start: t, orig: tgt.pts.map(p => p.slice()), moved: false }; }
     renderPlot(); renderInspector(); return;
   }
   const st = snapT(t);
@@ -673,7 +695,7 @@ function proposeGate(d) {
   let pts;
   if (d.type === 'interval') pts = d.pts.map(p => [fx.inv(p[0]), 0]);
   else pts = d.pts.map(p => [fx.inv(p[0]), fy.inv(p[1])]);
-  const gate = { id: 'g' + (S.nextId++), name: '', parent: S.view.pop, type: d.type, x: S.view.x, y: d.type === 'interval' ? null : S.view.y, pts };
+  const gate = { id: 'g' + (S.nextId++), group: S.activeGroup, name: '', parent: S.view.pop, type: d.type, x: S.view.x, y: d.type === 'interval' ? null : S.view.y, pts };
   const r = cv.getBoundingClientRect();
   askName({ left: r.left + r.width / 2 - 125, top: r.top + 60 }, 'Name this population', suggestName(d), name => {
     draft = null;
@@ -686,7 +708,7 @@ function createQuad(t) {
   const fx = tfn(S.view.x), fy = tfn(S.view.y), raw = [fx.inv(t[0]), fy.inv(t[1])], grp = 'q' + S.nextId;
   const nx = short(S.view.x), ny = short(S.view.y);
   [['-+', `${nx}− ${ny}+`], ['++', `${nx}+ ${ny}+`], ['+-', `${nx}+ ${ny}−`], ['--', `${nx}− ${ny}−`]].forEach(([q, name]) => {
-    S.gates.push({ id: 'g' + (S.nextId++), name, parent: S.view.pop, type: 'quad', quadrant: q, quadGroup: grp, x: S.view.x, y: S.view.y, pts: [raw.slice()] });
+    S.gates.push({ id: 'g' + (S.nextId++), group: S.activeGroup, name, parent: S.view.pop, type: 'quad', quadrant: q, quadGroup: grp, x: S.view.x, y: S.view.y, pts: [raw.slice()] });
   });
   S.view.sel = null; setTool('pointer'); afterGateEdit();
 }
@@ -709,6 +731,7 @@ function deleteGate(id) {
   const kill = [id, ...descendants(id)];
   if (kill.length > 1 && !confirm(`Delete "${g.name}" and ${kill.length - 1} population${kill.length > 2 ? 's' : ''} inside it?`)) return;
   S.gates = S.gates.filter(x => !kill.includes(x.id));
+  Object.keys(S.overrides).forEach(k => { if (kill.includes(k.split(':')[1])) delete S.overrides[k]; });
   if (kill.includes(S.view.pop)) S.view.pop = g.parent;
   if (kill.includes(S.view.sel)) S.view.sel = null;
   invalidateGates(); renderAll();
@@ -720,16 +743,22 @@ function renderSamples() {
   $('#sampleHint').classList.toggle('hidden', S.samples.length > 0);
   S.samples.forEach((s, i) => {
     const ctrl = S.ctrl[s.id];
-    ul.append(el('li', { class: i === S.active ? 'on' : '', title: s.fcs.fileName, onclick: () => { S.active = i; S.overlays.delete(s.id); renderAll(); }, ondblclick: e => askName({ left: e.clientX, top: e.clientY }, 'Rename sample', s.name, v => { if (v) { s.name = v; renderAll(); } }) },
+    const ag = activeGroup(), mine = groupsOf(s), nOv = sampleOverrides(s);
+    ul.append(el('li', { class: (i === S.active ? 'on' : '') + (ag && !ag.members.includes(s.id) ? ' outside' : ''), title: s.fcs.fileName, onclick: () => { S.active = i; S.overlays.delete(s.id); renderAll(); }, ondblclick: e => askName({ left: e.clientX, top: e.clientY }, 'Rename sample', s.name, v => { if (v) { s.name = v; renderAll(); } }) },
+      ag ? el('input', { type: 'checkbox', class: 'memchk', checked: ag.members.includes(s.id), title: `In ${ag.name}`, 'aria-label': `${s.name} in ${ag.name}`, onclick: e => e.stopPropagation(), onchange: e => toggleMember(ag, s.id, e.target.checked) }) : null,
       el('span', { class: 'sname' }, s.name),
+      mine.length ? el('span', { class: 'chips', title: mine.map(g => g.name).join(', ') }, ...mine.slice(0, 4).map(g => el('span', { class: 'gdot', style: `background:${g.color}` }))) : null,
+      nOv ? el('span', { class: 'ovdot', title: `${nOv} gate${nOv === 1 ? '' : 's'} adjusted for this sample` }, '\u2022') : null,
       el('span', { class: 'scount' }, ctrl ? (ctrl === 'unstained' ? 'unstained' : 'control') : fmtInt(s.fcs.N)),
       el('button', { class: 'iconbtn', 'aria-label': `Remove ${s.name}`, title: 'Remove sample', onclick: e => { e.stopPropagation(); removeSample(i); } }, '×')));
   });
 }
 function removeSample(i) {
   const s = S.samples[i]; S.samples.splice(i, 1); S.overlays.delete(s.id); delete S.ctrl[s.id];
+  S.groups.forEach(g => { const k = g.members.indexOf(s.id); if (k >= 0) g.members.splice(k, 1); });
+  Object.keys(S.overrides).forEach(k => { if (k.startsWith(s.id + ':')) delete S.overrides[k]; });
   if (S.active >= S.samples.length) S.active = S.samples.length - 1;
-  if (!S.samples.length) { Object.assign(S, { channels: [], transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false, gates: [], active: -1 }); S.view.pop = 'root'; }
+  if (!S.samples.length) { Object.assign(S, { channels: [], transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false, gates: [], active: -1, groups: [], activeGroup: null, overrides: {} }); S.view.pop = 'root'; }
   densityCache.clear(); refreshAll();
 }
 function renderTree() {
@@ -740,6 +769,10 @@ function renderTree() {
       depth ? el('span', { class: 'guide', 'aria-hidden': 'true' }, '└') : null,
       el('span', { class: 'pname' }, popName(id)),
       el('span', { class: 'pct' }, id === 'root' ? fmtInt(n) : (pn ? fmtPct(n / pn * 100) : '–')));
+    if (g) {
+      const nAdj = groupMembers(activeGroup()).filter(m => hasOverride(m, g)).length;
+      if (nAdj) li.append(el('span', { class: 'ovdot', title: `${nAdj} sample${nAdj === 1 ? '' : 's'} adjusted` }, '\u2022'));
+    }
     if (g) li.append(el('span', { class: 'acts' },
       el('button', { class: 'iconbtn', title: 'Show where this gate was drawn', 'aria-label': `Show gate ${g.name}`, onclick: e => { e.stopPropagation(); S.view.pop = g.parent; S.view.x = g.x; S.view.y = g.y || ''; S.view.sel = g.id; setTool('pointer'); switchTab('gate'); renderTree(); } }, '◎'),
       el('button', { class: 'iconbtn', title: 'Rename', 'aria-label': `Rename ${g.name}`, onclick: e => { e.stopPropagation(); renameGate(g, e.currentTarget); } }, '✎'),
@@ -757,7 +790,9 @@ function renderScheme() {
     children(id).forEach(g => { const k = g.x + '|' + (g.y || ''); if (!m.has(k)) m.set(k, []); m.get(k).push(g); });
     m.forEach(gs => groups.push({ parent: id, gates: gs }));
   });
-  $('#schemeLead').textContent = groups.length ? `Every gate for ${s.name}, drawn on its parent population. Percentages are of the parent.` : 'No gates yet. Draw gates on the Gate tab and the full strategy will appear here.';
+  $('#schemeLead').textContent = groups.length
+    ? `Every gate in ${activeGroup().name} for ${s.name}, drawn on its parent population. Percentages are of the parent.`
+    : `No gates in ${activeGroup() ? activeGroup().name : 'this group'} yet. Draw gates on the Gate tab and the full strategy will appear here.`;
   groups.forEach(gr => {
     const c = el('canvas'); grid.append(c);
     const g0 = gr.gates[0], pop = getPop(s, gr.parent), pn = pop.length;
@@ -854,36 +889,85 @@ function statValue(kind, col, idx) {
   if (kind === 'gmean') { let s = 0, n = 0; for (let i = 0; i < idx.length; i++) { const v = col[idx[i]]; if (v > 0) { s += Math.log(v); n++; } } return n ? Math.exp(s / n) : NaN; }
   if (kind === 'cv') { const [a, m, b] = Core.quantiles(col, [0.1587, 0.5, 0.8413], idx); return 100 * 0.5 * (b - a) / m; }
 }
+/* One block per group: every member sample against that group's own tree, optionally followed
+   by a summary row carrying the mean and SD across the group. A sample in two groups appears
+   under both, measured against each group's gates. */
 function statRows() {
   const kind = $('#statKind').value, chs = S.statChans || [], rows = [];
-  S.samples.forEach(s => {
-    const tot = s.fcs.N;
-    dfs().forEach(({ id, depth }) => {
-      const g = gateById(id), idx = getPop(s, id), pn = g ? getPop(s, g.parent).length : tot;
-      rows.push({ sample: s.name, pop: popName(id), depth, path: dfs().length, parent: g ? popName(g.parent) : '', count: idx.length, pctParent: pn ? idx.length / pn * 100 : NaN, pctTotal: tot ? idx.length / tot * 100 : NaN,
-        vals: chs.map(c => statValue(kind, getRaw(s, c), idx)) });
+  const groups = S.statGroup === 'all' ? S.groups : S.groups.filter(g => g.id === S.statGroup);
+  groups.forEach(grp => {
+    const tree = treeIn(grp.id), members = groupMembers(grp);
+    members.forEach(s => {
+      const tot = s.fcs.N;
+      tree.forEach(({ id, depth }) => {
+        const g = gateById(id), idx = getPop(s, id), pn = g ? getPop(s, g.parent).length : tot;
+        rows.push({ group: grp.name, groupId: grp.id, color: grp.color, sample: s.name, pop: popName(id), depth,
+          parent: g ? popName(g.parent) : '', count: idx.length,
+          pctParent: pn ? idx.length / pn * 100 : NaN, pctTotal: tot ? idx.length / tot * 100 : NaN,
+          adjusted: !!(g && hasOverride(s, g)),
+          vals: chs.map(c => statValue(kind, getRaw(s, c), idx)) });
+      });
     });
+    if (S.statSummary && members.length > 1) {
+      tree.forEach(({ id, depth }) => {
+        const g = gateById(id);
+        const per = members.map(s => {
+          const idx = getPop(s, id), pn = g ? getPop(s, g.parent).length : s.fcs.N;
+          return { pctParent: pn ? idx.length / pn * 100 : NaN, pctTotal: s.fcs.N ? idx.length / s.fcs.N * 100 : NaN,
+            count: idx.length, vals: chs.map(c => statValue(kind, getRaw(s, c), idx)) };
+        });
+        rows.push({ group: grp.name, groupId: grp.id, color: grp.color, summary: true, n: members.length,
+          sample: `mean \u00b1 SD (n=${members.length})`, pop: popName(id), depth, parent: g ? popName(g.parent) : '',
+          count: avg(per.map(p => p.count)), countSd: sd(per.map(p => p.count)),
+          pctParent: avg(per.map(p => p.pctParent)), pctParentSd: sd(per.map(p => p.pctParent)),
+          pctTotal: avg(per.map(p => p.pctTotal)), pctTotalSd: sd(per.map(p => p.pctTotal)),
+          vals: chs.map((_, k) => avg(per.map(p => p.vals[k]))), valsSd: chs.map((_, k) => sd(per.map(p => p.vals[k]))) });
+      });
+    }
   });
   return rows;
 }
+const avg = a => { const v = a.filter(isFinite); return v.length ? v.reduce((x, y) => x + y, 0) / v.length : NaN; };
+const sd = a => { const v = a.filter(isFinite); if (v.length < 2) return NaN; const m = avg(v); return Math.sqrt(v.reduce((x, y) => x + (y - m) ** 2, 0) / (v.length - 1)); };
+const pm = (m, s, f) => !isFinite(m) ? '\u2013' : f(m) + (isFinite(s) ? ' \u00b1 ' + f(s) : '');
 function renderStats() {
   if (!S.samples.length) return;
   if (!S.statChans) S.statChans = spillChannels().slice(0, 6);
   $('#statChans').replaceChildren(...S.channels.map(c => el('label', {}, el('input', { type: 'checkbox', checked: S.statChans.includes(c), onchange: e => { S.statChans = S.channels.filter(x => x === c ? e.target.checked : S.statChans.includes(x)); renderStats(); } }), el('span', { class: 'laser', style: `background:${laser(c)}` }), short(c))));
+  const gsel = $('#statGroup');
+  gsel.replaceChildren(el('option', { value: 'all' }, 'All groups'), ...S.groups.map(g => el('option', { value: g.id }, g.name)));
+  gsel.value = S.groups.some(g => g.id === S.statGroup) ? S.statGroup : 'all';
+  $('#statSummary').checked = !!S.statSummary;
   const kind = $('#statKind').selectedOptions[0].textContent;
   const rows = statRows(), tbl = $('#statTable');
-  const head = el('tr', {}, el('th', { class: 'l' }, 'Sample'), el('th', { class: 'l' }, 'Population'), el('th', {}, 'Events'), el('th', {}, '% of parent'), el('th', {}, '% of all'), ...S.statChans.map(c => el('th', {}, `${short(c)} ${kind.toLowerCase()}`)));
-  let last = null;
-  const body = rows.map(r => { const tr = el('tr', { class: r.sample !== last && last !== null ? 'grp' : '' },
-    el('td', { class: 'l' }, r.sample !== last ? r.sample : ''), el('td', { class: 'l', style: `padding-left:${10 + r.depth * 14}px` }, r.pop), el('td', {}, fmtInt(r.count)),
-    el('td', {}, r.parent ? fmtPct(r.pctParent) : ''), el('td', {}, fmtPct(r.pctTotal)), ...r.vals.map(v => el('td', {}, fmtStat(v)))); last = r.sample; return tr; });
+  const head = el('tr', {}, el('th', { class: 'l' }, 'Group'), el('th', { class: 'l' }, 'Sample'), el('th', { class: 'l' }, 'Population'), el('th', {}, 'Events'), el('th', {}, '% of parent'), el('th', {}, '% of all'), ...S.statChans.map(c => el('th', {}, `${short(c)} ${kind.toLowerCase()}`)));
+  let lastS = null, lastG = null;
+  const body = rows.map(r => {
+    const newBlock = r.sample !== lastS && lastS !== null;
+    const tr = el('tr', { class: (newBlock ? 'grp ' : '') + (r.summary ? 'summary' : '') },
+      el('td', { class: 'l' }, r.group !== lastG ? el('span', {}, el('span', { class: 'gdot', style: `background:${r.color};margin-right:6px` }), r.group) : ''),
+      el('td', { class: 'l' }, r.sample !== lastS ? el('span', {}, r.sample, r.adjusted ? el('span', { class: 'ovdot', title: 'gate adjusted for this sample' }, ' \u2022') : null) : ''),
+      el('td', { class: 'l', style: `padding-left:${10 + r.depth * 14}px` }, r.pop),
+      el('td', {}, r.summary ? pm(r.count, r.countSd, v => fmtInt(Math.round(v))) : fmtInt(r.count)),
+      el('td', {}, !r.parent ? '' : r.summary ? pm(r.pctParent, r.pctParentSd, v => v.toFixed(1) + '%') : fmtPct(r.pctParent)),
+      el('td', {}, r.summary ? pm(r.pctTotal, r.pctTotalSd, v => v.toFixed(1) + '%') : fmtPct(r.pctTotal)),
+      ...r.vals.map((v, k) => el('td', {}, r.summary ? pm(v, r.valsSd[k], fmtStat) : fmtStat(v))));
+    lastS = r.sample; lastG = r.group; return tr;
+  });
   tbl.replaceChildren(el('thead', {}, head), el('tbody', {}, ...body));
+  $('#statLead').textContent = S.groups.length > 1
+    ? 'Each group is measured against its own gating tree. A sample in two groups appears under both.'
+    : 'Counts and frequencies for every population in every sample. Marker statistics use compensated, untransformed values.';
 }
 function statsCsv() {
   const kind = $('#statKind').value, rows = statRows();
   const q = v => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
-  const lines = [['sample', 'population', 'parent', 'events', 'pct_of_parent', 'pct_of_all', ...S.statChans.map(c => `${short(c)}_${kind}`)].map(q).join(',')];
-  rows.forEach(r => lines.push([r.sample, r.pop, r.parent, r.count, isFinite(r.pctParent) && r.parent ? r.pctParent.toFixed(4) : '', r.pctTotal.toFixed(4), ...r.vals.map(v => isFinite(v) ? +v.toPrecision(6) : '')].map(q).join(',')));
+  const num = v => isFinite(v) ? +v.toPrecision(6) : '';
+  const lines = [['group', 'sample', 'is_group_summary', 'n', 'gate_adjusted', 'population', 'parent', 'events', 'events_sd', 'pct_of_parent', 'pct_of_parent_sd', 'pct_of_all', 'pct_of_all_sd',
+    ...S.statChans.flatMap(c => [`${short(c)}_${kind}`, `${short(c)}_${kind}_sd`])].map(q).join(',')];
+  rows.forEach(r => lines.push([r.group, r.sample, r.summary ? 1 : 0, r.summary ? r.n : 1, r.adjusted ? 1 : 0, r.pop, r.parent,
+    num(r.count), num(r.countSd), r.parent ? num(r.pctParent) : '', r.parent ? num(r.pctParentSd) : '', num(r.pctTotal), num(r.pctTotalSd),
+    ...r.vals.flatMap((v, k) => [num(v), num(r.valsSd ? r.valsSd[k] : NaN)])].map(q).join(',')));
   download(URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), 'population_statistics.csv');
 }
 
@@ -921,8 +1005,9 @@ function renderAll() {
   const has = S.samples.length > 0;
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(b => { b.disabled = !has; });
-  renderSamples();
-  if (!has) { $('#pane-empty').classList.add('on'); $('#popTree').replaceChildren(); return; }
+  if (has) ensureGroups();
+  renderGroups(); renderSamples();
+  if (!has) { $('#pane-empty').classList.add('on'); $('#popTree').replaceChildren(); $('#groupList').replaceChildren(); return; }
   $('#pane-' + S.tab).classList.add('on');
   renderTree();
   if (S.tab === 'gate') renderGateTab();
@@ -955,6 +1040,8 @@ $('#btnCompCsv').onclick = () => { const ch = S.spill.channels; const lines = ['
 $('#btnCompute').onclick = computeFromControls;
 $('#pvX').onchange = $('#pvY').onchange = renderPreview;
 $('#statKind').onchange = renderStats;
+$('#statGroup').onchange = e => { S.statGroup = e.target.value; markDirty(); renderStats(); };
+$('#statSummary').onchange = e => { S.statSummary = e.target.checked; markDirty(); renderStats(); };
 $('#btnCsv').onclick = statsCsv;
 $('#btnFcsExport').onclick = () => {
   const s = activeSample(), idx = getPop(s, S.view.pop);
@@ -1018,6 +1105,9 @@ document.addEventListener('keydown', e => {
 $('#projIn').onchange = e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.FW.saveProject = saveProject; window.FW.openProject = openProject; window.FW.buildFigure = buildFigure;
+window.FW.dfs = dfs; window.FW.treeIn = treeIn; window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
+window.FW.copyGatesTo = copyGatesTo; window.FW.toggleMember = toggleMember; window.FW.deleteGroup = deleteGroup;
+window.FW.effGate = effGate; window.FW.hasOverride = hasOverride; window.FW.clearOverride = clearOverride; window.FW.groupMembers = groupMembers;
 window.FW.figureSvg = figureSvg; window.FW.E = E; window.FW.renderExport = renderExport; window.FW.SvgCtx = SvgCtx;
 
 renderAll();

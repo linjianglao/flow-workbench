@@ -145,6 +145,7 @@ table.tbl th, table.tbl td { padding: 6px 10px; border-bottom: 1px solid var(--r
 table.tbl th { font-weight: 600; color: var(--muted); background: #F7F9F8; position: sticky; top: 0; }
 table.tbl td.l, table.tbl th.l { text-align: left; }
 table.tbl tr.grp td { border-top: 2px solid var(--rule); }
+table.tbl tr.summary td { background: #F4F8F7; font-weight: 600; }
 .tblwrap { overflow: auto; max-height: calc(100vh - 230px); border-radius: 8px; }
 table.tbl.matrix td { padding: 2px 6px; }
 .matrix input { width: 72px; border: 1px solid transparent; background: transparent; text-align: right; padding: 3px 5px; border-radius: 4px; }
@@ -203,6 +204,25 @@ table.tbl.matrix td { padding: 2px 6px; }
 #expPreviewWrap { border: 1px solid var(--rule); border-radius: 10px; background: #fff; padding: 12px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
 #expPreview { display: block; max-width: 100%; }
 #expPreview.checker { background-image: linear-gradient(45deg, #E8ECEB 25%, transparent 25%), linear-gradient(-45deg, #E8ECEB 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #E8ECEB 75%), linear-gradient(-45deg, transparent 75%, #E8ECEB 75%); background-size: 14px 14px; background-position: 0 0, 0 7px, 7px -7px, -7px 0; }
+
+/* groups */
+.glist-g li { gap: 7px; }
+.glist-g li.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.gdot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+.gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gmeta { color: var(--faint); font-size: 11.5px; white-space: nowrap; }
+.glist-g li .iconbtn { display: none; }
+.glist-g li:hover .iconbtn, .glist-g li.on .iconbtn { display: inline-block; }
+#groupActions { padding: 4px 16px 0; flex-wrap: wrap; }
+#groupActions .btn { font-size: 12.5px; padding: 4px 9px; }
+.memchk { accent-color: var(--accent); flex: none; margin: 0; }
+.chips { display: inline-flex; gap: 3px; flex: none; }
+.slist li.outside .sname { color: var(--faint); }
+.ovdot { color: var(--l640); font-weight: 700; flex: none; }
+.statusline .warn { color: var(--l640); }
+.scopebox { padding: 0 16px 10px; }
+.scopebox .seg { display: flex; width: 100%; }
+.scopebox .seg button { flex: 1; padding: 5px 6px; font-size: 12.5px; text-align: center; }
 
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13.5px; max-width: 80vw; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 .toast.err { background: var(--danger); }
@@ -270,6 +290,12 @@ kbd { font-family: inherit; font-size: 11.5px; border: 1px solid var(--rule); bo
 <div class="app">
   <aside class="side" aria-label="Samples and populations">
     <section>
+      <h2>Groups</h2>
+      <ul class="slist glist-g" id="groupList"></ul>
+      <div class="minibtns" id="groupActions"></div>
+      <p class="hint" id="groupHint"></p>
+    </section>
+    <section>
       <h2>Samples</h2>
       <ul class="slist" id="sampleList"></ul>
       <p class="hint" id="sampleHint">No samples loaded yet.</p>
@@ -334,6 +360,7 @@ kbd { font-family: inherit; font-size: 11.5px; border: 1px solid var(--rule); bo
           <section id="axisInsp"></section>
           <section>
             <h2>Gates on this plot</h2>
+            <div id="scopeBox"></div>
             <ul class="glist" id="gateList"></ul>
             <p class="hint" id="gateHint">Draw with a gate tool, or pick one here to edit it.</p>
             <div class="minibtns" id="gateBtns"></div>
@@ -400,8 +427,11 @@ kbd { font-family: inherit; font-size: 11.5px; border: 1px solid var(--rule); bo
     <!-- stats -->
     <div class="pane" id="pane-stats"><div class="pad">
       <h2>Statistics</h2>
-      <p class="lead">Counts and frequencies for every population in every sample. Marker statistics use compensated, untransformed values.</p>
+      <p class="lead" id="statLead">Counts and frequencies for every population in every sample. Marker statistics use compensated, untransformed values.</p>
       <div class="row-actions">
+        <label for="statGroup" style="color:var(--muted);font-size:13px">Group</label>
+        <select id="statGroup" class="ch"></select>
+        <label class="chk" style="padding:0"><input type="checkbox" id="statSummary"> Group mean ± SD</label>
         <label for="statKind" style="color:var(--muted);font-size:13px">Marker statistic</label>
         <select id="statKind" class="ch"><option value="median">Median</option><option value="mean">Mean</option><option value="gmean">Geometric mean</option><option value="cv">Robust CV (%)</option></select>
         <button class="btn primary" id="btnCsv">Export CSV</button>

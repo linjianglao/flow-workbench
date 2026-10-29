@@ -149,6 +149,50 @@ async def main():
         check("population counts identical after reopening the project", counts == counts2, f"{counts} vs {counts2}")
         check("compensation state restored", await page2.evaluate("FW.S.compOn") is True)
 
+        # ---- groups (v1.1)
+        await page.evaluate("()=>{FW.S.gates=[{id:'gg1',group:'G1',name:'Cells',parent:'root',type:'rect',x:'FSC-A',y:'SSC-A',pts:[[42000,6000],[88000,34000]]}];FW.S.nextId=2;FW.renderAll();}")
+        await page.wait_for_timeout(400)
+        check("a default group holds every sample",
+              await page.evaluate("FW.S.groups.length === 1 && FW.S.groups[0].members.length === FW.S.samples.length"))
+
+        await page.evaluate("()=>{FW.addGroup('Second');}")
+        await page.wait_for_timeout(300)
+        check("a new group starts with an empty tree",
+              await page.evaluate("FW.dfs().length === 1"), await page.evaluate("JSON.stringify(FW.dfs())"))
+
+        await page.evaluate("()=>{FW.copyGatesTo('G1','G2');}")
+        await page.wait_for_timeout(400)
+        check("copied gates get fresh ids so the trees stay independent",
+              await page.evaluate("(()=>{const ids=FW.S.gates.map(g=>g.id);return new Set(ids).size===ids.length && FW.S.gates.filter(g=>g.group==='G2').length===1;})()"))
+
+        await page.evaluate("()=>{FW.setActiveGroup('G1');FW.S.view.pop='root';}")
+        await page.wait_for_timeout(300)
+        base = json.loads(await page.evaluate("JSON.stringify(FW.S.samples.slice(0,3).map(s=>FW.getPop(s,'gg1').length))"))
+        await page.evaluate("""()=>{const s=FW.S.samples[0];
+            FW.S.overrides[s.id+':gg1']={pts:[[50000,9000],[80000,30000]]};
+            FW.invalidateGates();FW.renderAll();}""")
+        await page.wait_for_timeout(400)
+        nudged = json.loads(await page.evaluate("JSON.stringify(FW.S.samples.slice(0,3).map(s=>FW.getPop(s,'gg1').length))"))
+        check("a per-sample override moves only that sample",
+              nudged[0] != base[0] and nudged[1:] == base[1:], f"{base} -> {nudged}")
+        check("the group's own gate is left alone by an override",
+              await page.evaluate("JSON.stringify(FW.S.gates.find(g=>g.id==='gg1').pts) === '[[42000,6000],[88000,34000]]'"))
+
+        async with page.expect_download() as dl:
+            await page.click("#btnSaveProj")
+        gproj = tmp / "groups.fwproj"
+        gproj.write_bytes(pathlib.Path(await (await dl.value).path()).read_bytes())
+        page3 = await ctx.new_page()
+        page3.on("pageerror", lambda e: errors.append("groups reopen: " + str(e)))
+        await page3.goto(APP)
+        await page3.set_input_files("#projIn", str(gproj))
+        await page3.wait_for_timeout(2500)
+        check("groups and overrides survive a project round trip",
+              await page3.evaluate("FW.S.groups.length===2 && Object.keys(FW.S.overrides).length===1"),
+              await page3.evaluate("JSON.stringify({g:FW.S.groups.length,o:Object.keys(FW.S.overrides).length})"))
+        reopened = json.loads(await page3.evaluate("JSON.stringify(FW.S.samples.slice(0,3).map(s=>FW.getPop(s,'gg1').length))"))
+        check("adjusted counts reopen unchanged", reopened == nudged, f"{nudged} vs {reopened}")
+
         check("no uncaught JavaScript errors", not errors, errors[:3])
         await browser.close()
 

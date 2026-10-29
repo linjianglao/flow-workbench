@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-10-29
+
+### Added
+- **Sample groups.** A group is a named set of samples that share one gating tree. Gates belong to a group, so one session can hold files that need different gating — two panels, two experiments, two acquisition days. A sample may belong to several groups, and the active group decides what the Gate tab shows.
+- **Copy gating between groups**, reissuing gate ids so the two trees stay independent.
+- **Per-sample gate adjustment.** A switch on the selected gate chooses whether a drag edits the whole group or only the active sample. Sample-scoped edits are stored as overrides, leave the group's shape untouched, and are marked with a dot in the plot, the population tree and the sample list. Overrides reset one at a time or for a whole group.
+- **Group statistics.** The Statistics tab blocks rows by group and offers an optional `mean ± SD (n=…)` summary row per population. The CSV gained group, summary-flag, n, adjusted-flag and per-value SD columns.
+- Figure export and the gating scheme follow the active group.
+
+### Changed
+- Project files store groups, membership and overrides. A 1.0 project opens unchanged: its single tree becomes one group holding every sample.
+
 ## [1.0.0] — 2026-10-26
 
 First public release.

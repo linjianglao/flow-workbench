@@ -32,6 +32,19 @@ Either way, click **Try with demo data** to explore, or **Add FCS files** to loa
 
 Chrome, Edge, Safari and Firefox all work. Chrome and Edge additionally let you save a project straight back to the same file rather than downloading a new copy each time.
 
+## Groups
+
+![Groups](docs/img/groups.png)
+
+A **group** is a set of samples that share one gating tree. Every session starts with a single group holding every file you load, so if you never touch the panel the tool behaves exactly as before.
+
+Create more groups when one session holds files that need different treatment — two panels, two experiments, two days of acquisition. Each group owns its gating tree, so gates you draw belong to the active group and apply to every sample ticked into it. Adding a file to a group gates it instantly.
+
+- **A sample can sit in several groups**, which is useful when the same file is both a donor and a condition. Because two groups can gate the same file differently, a population is identified by the pair (group, gate), and the active group decides what the Gate tab shows and what Statistics reports.
+- **Copy gating →** duplicates one group's whole tree into another. The copy gets fresh gate ids, so editing one tree never moves the other.
+- **Per-sample adjustment.** Real populations shift between files. Select a gate and the inspector offers a switch: dragging edits *all of the group*, or *only this sample*. A sample-scoped drag stores an override for that file alone, leaves the group's own shape untouched, and marks the gate with a dot wherever it appears. **Reset to group shape** discards one override; **Reset adjusted** in the Groups panel discards every override in the group.
+- **Statistics are reported per group**, with an optional `mean ± SD (n=…)` summary row for each population. A sample in two groups appears under both, measured against each group's gates.
+
 ## The workflow
 
 The five tabs run left to right in the order you would normally work.
@@ -75,7 +88,7 @@ Compensation applies to every sample at once and feeds through to all gates and 
 
 ### Statistics
 
-Counts, % of parent and % of all events for every population in every sample. Per-marker statistics are available as median, mean, geometric mean or robust CV, calculated on compensated but untransformed values. Choose which channels appear, then export the whole table as CSV.
+Counts, % of parent and % of all events for every population in every sample, blocked by group. Per-marker statistics are available as median, mean, geometric mean or robust CV, calculated on compensated but untransformed values. Tick **Group mean ± SD** for a summary row per population, filter to one group, choose which channels appear, then export the whole table as CSV — including the group, the summary flag, n, and an SD column beside every value.
 
 The same tab exports the events of any population as a new FCS file, with compensated values if compensation is on.
 
@@ -126,6 +139,8 @@ There are two kinds of save, and they serve different purposes.
 
 Project files are compressed; the eight-sample demo comes to about 6 MB. The original file bytes are stored untouched, so acquisition date, cytometer name and the original spillover keyword all survive a round trip.
 
+Project files also carry your groups, their membership and every per-sample adjustment, so reopening one puts you back exactly where you were.
+
 **Gating templates (`.json`)** contain the analysis but *not* the data — gates, transforms and compensation only. Use these to apply a settled gating strategy to a new batch of files: load the new FCS files, then **File > Open gating template**. The template is rejected if the new files lack a channel it needs.
 
 You can also drag a `.fwproj` or `.json` file straight onto the window.
@@ -136,7 +151,7 @@ Reads FCS 2.0, 3.0 and 3.1 in list mode, with integer, float and double data typ
 
 The reader was checked against the Python `flowio` library on nine files from different instruments and formats; raw values match exactly.
 
-All files loaded in one session must share the same channel names. A file that doesn't match is skipped with a message naming the missing channels.
+All files loaded in one session must share the same channel names, even across groups. A file that doesn't match is skipped with a message naming the missing channels.
 
 ## Limitations
 

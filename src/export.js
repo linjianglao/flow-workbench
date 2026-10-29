@@ -37,7 +37,7 @@ function plotGroups() {
   return groups;
 }
 const groupLabel = gr => `${popName(gr.parent)}: ${short(gr.x)}${gr.y ? ' vs ' + short(gr.y) : ' histogram'}`;
-const expSamples = () => S.samples.filter(s => E.samples ? E.samples.has(s.id) : !S.ctrl[s.id]);
+const expSamples = () => S.samples.filter(s => E.samples ? E.samples.has(s.id) : (inActiveGroup(s) && !S.ctrl[s.id]));
 const expGroups = () => plotGroups().filter(g => !E.plots || E.plots.has(g.key));
 const expSample = () => S.samples.find(s => s.id === E.sampleId) || activeSample();
 
@@ -196,6 +196,9 @@ function renderExport() {
   const set = (k, v, full) => { E[k] = v; markDirty(); full ? renderExport() : renderExportPreview(); };
 
   // layout picker
+  if (S.groups.length > 1) box.append(el('p', { class: 'hint', style: 'padding:0 0 10px' },
+    'Drawn from group ', el('b', {}, el('span', { class: 'gdot', style: `background:${activeGroup().color};margin-right:5px` }), activeGroup().name),
+    '. Switch groups in the sidebar to build the same figure from another one.'));
   box.append(el('h3', {}, 'Layout'), el('div', { class: 'layouts', role: 'radiogroup', 'aria-label': 'Figure layout' },
     ...LAYOUTS.map(l => el('button', { class: 'layout' + (L === l.id ? ' on' : ''), role: 'radio', 'aria-checked': L === l.id, onclick: () => set('layout', l.id, true) },
       layoutIcon(l.id), el('span', { class: 'lname' }, l.name)))),
@@ -245,8 +248,8 @@ function renderExport() {
     }, gs.length ? null : 'No gates yet.'));
   }
   if (L !== 'current' && L !== 'strategy' && !(onePlot && E.compare === 'populations')) {
-    content.append(el('div', { class: 'sublabel' }, 'Samples'), checkList(S.samples.map(s => [s.id, s.name]), id => E.samples ? E.samples.has(id) : !S.ctrl[id], (id, on) => {
-      const cur = E.samples || new Set(S.samples.filter(s => !S.ctrl[s.id]).map(s => s.id)); on ? cur.add(id) : cur.delete(id); E.samples = cur; markDirty(); renderExportPreview();
+    content.append(el('div', { class: 'sublabel' }, 'Samples'), checkList(S.samples.map(s => [s.id, s.name]), id => E.samples ? E.samples.has(id) : (!S.ctrl[id] && activeGroup() && activeGroup().members.includes(id)), (id, on) => {
+      const cur = E.samples || new Set(expSamples().map(s => s.id)); on ? cur.add(id) : cur.delete(id); E.samples = cur; markDirty(); renderExportPreview();
     }));
   }
   box.append(content);

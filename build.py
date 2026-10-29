@@ -12,7 +12,7 @@ read = lambda n: (SRC / n).read_text()
 
 
 def build() -> str:
-    ext = "\n".join(read(n) for n in ("svgctx.js", "project.js", "export.js", "free.js"))
+    ext = "\n".join(read(n) for n in ("svgctx.js", "groups.js", "project.js", "export.js", "free.js"))
     ui = read("ui.js").replace("/*__EXT__*/", ext)
     core = read("core.js").replace("</script", "<\\/script")
     return read("shell.html").replace("/*__CORE__*/", core).replace("/*__UI__*/", ui)

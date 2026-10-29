@@ -17,15 +17,18 @@ abstract: >-
   and logicle transforms, interactive hierarchical gating with rectangle,
   polygon, ellipse, interval and quadrant gates, population statistics with
   CSV export, and a figure composer with fixed and free-form layouts that
-  exports PNG, vector SVG and PDF. Projects bundle the source FCS files with
-  the complete analysis in one reopenable file.
+  exports PNG, vector SVG and PDF. Samples can be organised into groups that
+  share a gating tree, with per-sample gate adjustment and per-group summary
+  statistics. Projects bundle the source FCS files with the complete analysis
+  in one reopenable file.
 keywords:
   - flow cytometry
   - FCS
   - gating
+  - sample groups
   - compensation
   - logicle
   - data visualization
 license: MIT
-version: 1.0.0
-date-released: "2026-10-26"
+version: 1.1.0
+date-released: "2026-10-29"
