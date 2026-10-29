@@ -63,8 +63,29 @@ async def main():
         check("every donor B file lands in its own group's gate",
               all(0.3 < y < 0.65 for y in ydB), [round(y, 3) for y in ydB])
 
+        # Clicking a population should show the plot its children were gated on.
+        await page.evaluate("()=>{FW.setActiveGroup('G1');}")
+        await page.wait_for_timeout(300)
+        steps = []
+        for name in ["All events", "Lymphocytes", "Single cells", "Live cells", "T cells"]:
+            await page.evaluate(
+                "(n)=>{const li=[...document.querySelectorAll('#popTree li')]"
+                ".find(l=>l.querySelector('.pname').textContent===n); li.click();}", name)
+            await page.wait_for_timeout(250)
+            steps.append(json.loads(await page.evaluate("JSON.stringify([FW.S.view.x,FW.S.view.y])")))
+        check("selecting a population jumps the axes to its children's gating",
+              steps == [["FSC-A", "SSC-A"], ["FSC-A", "FSC-H"], ["Pacific Blue-A", ""],
+                        ["FITC-A", ""], ["PE-A", "APC-A"]], steps)
+        await page.evaluate(
+            "()=>{const li=[...document.querySelectorAll('#popTree li')]"
+            ".find(l=>l.querySelector('.pname').textContent.startsWith('CD4+ CD8')); li.click();}")
+        await page.wait_for_timeout(250)
+        check("a leaf population leaves the axes alone",
+              json.loads(await page.evaluate("JSON.stringify([FW.S.view.x,FW.S.view.y])")) == ["PE-A", "APC-A"])
+
         # Clear the demo's analysis so the gate-drawing tests below start from a known state.
-        await page.evaluate("()=>{FW.setActiveGroup('G1');FW.S.gates=[];FW.S.overrides={};FW.S.nextId=1;FW.S.view.pop='root';FW.invalidateGates();FW.renderAll();}")
+        await page.evaluate("()=>{FW.setActiveGroup('G1');FW.S.gates=[];FW.S.overrides={};FW.S.nextId=1;"
+                            "FW.S.view.pop='root';FW.S.view.x='FSC-A';FW.S.view.y='SSC-A';FW.invalidateGates();FW.renderAll();}")
         await page.wait_for_timeout(400)
 
         px = lambda x, y: page.evaluate(f"FW.toPx({x},{y})")

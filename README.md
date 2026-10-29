@@ -75,7 +75,9 @@ Pick channels for the X and Y axes, or set Y to **Histogram** for a one-dimensio
 
 Press `Delete` to remove the selected gate, `Esc` to cancel a drawing in progress.
 
-Every gate is drawn inside whichever population is selected in the sidebar, which is how the gating hierarchy is built. Select a child population in the tree to gate deeper. A gate you drag or reshape recalculates immediately, along with everything downstream of it.
+Every gate is drawn inside whichever population is selected in the sidebar, which is how the gating hierarchy is built. Select a child population in the tree to gate deeper.
+
+Clicking a population also **moves the axes to whatever its children were gated on**, so walking down the tree steps through the strategy: *All events* shows FSC-A vs SSC-A, *Lymphocytes* shows FSC-A vs FSC-H, *Live cells* shows the CD3 histogram, and so on. A population with no gates inside it leaves the axes alone. The ◎ button beside a gate does the complementary thing — it jumps to the plot where *that gate* was drawn, with it selected. A gate you drag or reshape recalculates immediately, along with everything downstream of it.
 
 The inspector on the right sets the transform per channel — linear, log, arcsinh or logicle. Logicle width is estimated from the negative population in your data, and **Use for all markers** copies one channel's settings to every fluorescence channel. On histograms you can overlay other samples to compare them directly.
 

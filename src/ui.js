@@ -89,6 +89,19 @@ function treeIn(gid, id = 'root', depth = 0, out = []) {
 }
 function dfs() { return treeIn(S.activeGroup); }
 function descendants(id) { const g = gateById(id); return treeIn(g ? g.group : S.activeGroup, id).slice(1).map(d => d.id); }
+/* Selecting a population means "show me what I gated inside it", so the axes follow its children.
+   Where a population was gated several ways, the axis pair carrying the most gates wins; a leaf
+   has nothing to show, so its axes are left as they are. */
+function axesForPop(id) {
+  const kids = children(id);
+  if (!kids.length) return null;
+  const tally = new Map();
+  kids.forEach(g => { const k = g.x + '\u0000' + (g.y || ''); tally.set(k, (tally.get(k) || 0) + 1); });
+  let best = null, bestN = 0;
+  tally.forEach((n, k) => { if (n > bestN) { bestN = n; best = k; } });
+  const [x, y] = best.split('\u0000');
+  return S.channels.includes(x) && (!y || S.channels.includes(y)) ? { x, y } : null;
+}
 
 // ------------------------------------------------------------ loading ---
 function addSample(fcs, bytes) {
@@ -539,7 +552,7 @@ function renderInspector() {
   const sel = gateById(S.view.sel), btns = $('#gateBtns'); btns.replaceChildren();
   const scope = $('#scopeBox'); if (scope) scope.replaceChildren(...[sel && gs.includes(sel) ? editScopeControl() : null].filter(Boolean));
   if (sel && gs.includes(sel)) {
-    btns.append(el('button', { class: 'btn', onclick: () => { S.view.pop = sel.id; S.view.sel = null; renderGateTab(); renderTree(); } }, 'Plot this population'),
+    btns.append(el('button', { class: 'btn', onclick: () => selectPop(sel.id) }, 'Plot this population'),
       el('button', { class: 'btn', onclick: e => renameGate(sel, e.target) }, 'Rename'),
       el('button', { class: 'btn danger', onclick: () => deleteGate(sel.id) }, 'Delete'));
   }
@@ -776,11 +789,18 @@ function removeSample(i) {
   if (!S.samples.length) { Object.assign(S, { channels: [], transforms: {}, tfns: {}, spill: null, fileSpill: null, compOn: false, gates: [], active: -1, groups: [], activeGroup: null, overrides: {} }); S.view.pop = 'root'; }
   densityCache.clear(); refreshAll();
 }
+function selectPop(id) {
+  S.view.pop = id; S.view.sel = null; draft = null;
+  const ax = axesForPop(id);
+  if (ax) { S.view.x = ax.x; S.view.y = ax.y; }
+  if (S.tab !== 'gate') switchTab('gate'); else renderGateTab();
+  renderTree();
+}
 function renderTree() {
   const ul = $('#popTree'); ul.replaceChildren(); const s = activeSample(); if (!s) return;
   dfs().forEach(({ id, depth }) => {
     const g = gateById(id), n = getPop(s, id).length, pn = g ? getPop(s, g.parent).length : n;
-    const li = el('li', { class: S.view.pop === id ? 'on' : '', style: `padding-left:${8 + depth * 14}px`, title: id === 'root' ? '' : `${label(g.x)}${g.y ? ' vs ' + label(g.y) : ''}`, onclick: () => { S.view.pop = id; S.view.sel = null; if (S.tab !== 'gate') switchTab('gate'); else renderGateTab(); renderTree(); } },
+    const li = el('li', { class: S.view.pop === id ? 'on' : '', style: `padding-left:${8 + depth * 14}px`, title: id === 'root' ? '' : `${label(g.x)}${g.y ? ' vs ' + label(g.y) : ''}`, onclick: () => { selectPop(id); } },
       depth ? el('span', { class: 'guide', 'aria-hidden': 'true' }, '└') : null,
       el('span', { class: 'pname' }, popName(id)),
       el('span', { class: 'pct' }, id === 'root' ? fmtInt(n) : (pn ? fmtPct(n / pn * 100) : '–')));
@@ -1120,7 +1140,7 @@ document.addEventListener('keydown', e => {
 $('#projIn').onchange = e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.FW.saveProject = saveProject; window.FW.openProject = openProject; window.FW.buildFigure = buildFigure;
-window.FW.dfs = dfs; window.FW.treeIn = treeIn;  window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
+window.FW.popName = popName; window.FW.dfs = dfs; window.FW.treeIn = treeIn; window.FW.selectPop = selectPop; window.FW.axesForPop = axesForPop;  window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
 window.FW.copyGatesTo = copyGatesTo; window.FW.toggleMember = toggleMember; window.FW.deleteGroup = deleteGroup;
 window.FW.effGate = effGate; window.FW.hasOverride = hasOverride; window.FW.clearOverride = clearOverride; window.FW.groupMembers = groupMembers;
 window.FW.figureSvg = figureSvg; window.FW.E = E; window.FW.renderExport = renderExport; window.FW.SvgCtx = SvgCtx;
