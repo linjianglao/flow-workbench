@@ -152,14 +152,6 @@ function loadDemo() {
   resetState();
   Core.demoSet().forEach(fcs => addSample(fcs));
   applyDemoGroups();
-  S.view.pop = 'root'; S.view.sel = null;
-  invalidate({ comp: true }); refreshAll();
-  toast('Demo loaded: two donors of 3 samples each, grouped, plus 5 compensation controls. Draw a gate and it applies to every sample in the active group.');
-}
-function loadWorkedExample() {
-  resetState();
-  Core.demoSet().forEach(fcs => addSample(fcs));
-  applyDemoGroups();
   const a = Core.demoAnalysis();
   S.gates = a.gates.map(g => ({ ...g }));
   S.nextId = S.gates.length + 1;
@@ -168,7 +160,7 @@ function loadWorkedExample() {
   S.statSummary = true;
   S.view.pop = 'root'; S.view.sel = null; S.view.x = 'FSC-A'; S.view.y = 'SSC-A';
   invalidate({ comp: true }); refreshAll();
-  toast('Worked example loaded. Donor A and Donor B each carry their own gating tree, and Donor B stimulated has one gate nudged because that file drifted.');
+  toast('Demo loaded. Donor A and Donor B each carry their own gating tree, and Donor B stimulated has one gate nudged because that file drifted. Delete the gates to start from scratch.');
 }
 
 // ------------------------------------------------------------ plotting ---
@@ -1048,7 +1040,6 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
 $('#btnOpen').onclick = $('#btnOpen2').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
 $('#btnDemo').onclick = loadDemo;
-$('#btnExample').onclick = loadWorkedExample;
 $('#tplIn').onchange = e => { if (e.target.files[0]) openTemplate(e.target.files[0]); e.target.value = ''; };
 $('#selX').onchange = e => { e.target.blur(); S.view.x = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
 $('#selY').onchange = e => { e.target.blur(); S.view.y = e.target.value; S.view.sel = null; draft = null; renderGateTab(); };
@@ -1129,7 +1120,7 @@ document.addEventListener('keydown', e => {
 $('#projIn').onchange = e => { if (e.target.files[0]) openProject(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.FW.saveProject = saveProject; window.FW.openProject = openProject; window.FW.buildFigure = buildFigure;
-window.FW.dfs = dfs; window.FW.treeIn = treeIn; window.FW.loadWorkedExample = loadWorkedExample; window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
+window.FW.dfs = dfs; window.FW.treeIn = treeIn;  window.FW.invalidateGates = invalidateGates; window.FW.addGroup = addGroup; window.FW.setActiveGroup = setActiveGroup;
 window.FW.copyGatesTo = copyGatesTo; window.FW.toggleMember = toggleMember; window.FW.deleteGroup = deleteGroup;
 window.FW.effGate = effGate; window.FW.hasOverride = hasOverride; window.FW.clearOverride = clearOverride; window.FW.groupMembers = groupMembers;
 window.FW.figureSvg = figureSvg; window.FW.E = E; window.FW.renderExport = renderExport; window.FW.SvgCtx = SvgCtx;

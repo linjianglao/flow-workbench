@@ -142,7 +142,7 @@ section('Axis ticks');
 }
 
 // ------------------------------------------------------- grouped demo ---
-section('Grouped demo and worked example');
+section('Grouped demo');
 {
   const set = Core.demoSet(), groups = Core.demoGroups(), { gates, overrides } = Core.demoAnalysis();
   ok('every group member points at a real sample', groups.every(g => g.members.every(i => set[i])));
